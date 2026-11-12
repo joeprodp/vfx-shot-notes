@@ -159,6 +159,7 @@ body.exporting .photos{grid-template-columns:1fr 1fr}
 body.exporting .rm,body.exporting .photo .ph{display:none}
 body.exporting .box{font-size:13px;min-height:34px;padding:7px 7px}
 body.exporting .photo:not(.has) .ph{display:grid}
+#updateBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:20;display:flex;gap:10px;align-items:center;background:var(--sheet);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px 10px 8px 14px;box-shadow:0 4px 18px rgba(0,0,0,.18);font-size:14px}
 @page{size:8.5in 14in;margin:.3in}
 @media print{body{background:#fff;padding:0}.toolbar,#status,.rm{display:none}main{max-width:none;padding:0}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
@@ -767,7 +768,22 @@ byId('dirBtn').onclick = openDir;
 load().then(render);
 
 /* Standalone app: offline support, durable storage, install hint */
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'}).then(reg => {
+    const check = () => reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  }).catch(() => {});
+  /* A new version took over: offer a reload instead of interrupting whatever is being typed */
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || byId('updateBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'updateBar'; bar.setAttribute('role', 'status');
+    bar.innerHTML = '<span>Update ready.</span> <button type="button" class="primary">Reload</button>';
+    bar.querySelector('button').onclick = () => location.reload();
+    document.body.appendChild(bar);
+  });
+}
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
 if (!standalone && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document)

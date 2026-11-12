@@ -214,13 +214,13 @@ function row(cols, colsSm, cells, extraClass = '') {
 }
 byId('details').innerHTML =
   row('46fr 25.5fr 28.5fr', '1fr 1fr', [['Project','Project'],['Shoot day','Shoot day','decimal'],['Date','Date','decimal']], 'wrap') +
-  row('25fr 28fr 47fr', '1fr 1fr', [['Scene','Scene','decimal'],['Shot','Shot'],['Location','Location']], 'wrap') +
+  row('25fr 28fr 47fr', '1fr 1fr', [['Scene','Scene'],['Shot','Shot'],['Location','Location']], 'wrap') +
   row('1fr', '', [['Shot description / action','Shot description','area']]);
 byId('camera').innerHTML =
   row('repeat(4,1fr)', '1fr 1fr', [['Camera / roll','Camera roll'],['Lens / focal length','Lens','decimal'],['T-stop','T-stop','decimal'],['Filters','Filters']], 'wrap') +
   row('repeat(4,1fr)', '1fr 1fr', [['Resolution / mode','Resolution','decimal'],['Framing','Framing','decimal'],['ISO / EI','ISO','numeric'],['WB / K','WB','numeric']], 'wrap') +
-  row('repeat(4,1fr)', '1fr 1fr', [['FPS','FPS','decimal'],['Shutter','Shutter','decimal'],['Height','Height','decimal'],['Tilt / direction','Tilt','decimal']], 'wrap') +
-  row('1fr 1fr', '', [['Subject distance','Subject distance','decimal'],['Background distance','Background distance','decimal']]);
+  row('repeat(4,1fr)', '1fr 1fr', [['FPS','FPS','decimal'],['Shutter','Shutter','decimal'],['Height','Height'],['Tilt / direction','Tilt','decimal']], 'wrap') +
+  row('1fr 1fr', '', [['Subject distance','Subject distance'],['Background distance','Background distance']]);
 const TAKE_ROWS = 4;
 byId('takes').innerHTML =
   '<div class="row head" style="--cols:10fr 21.5fr 68.5fr"><span class="cap">Take</span><span class="cap">Roll / clip</span><span class="cap">Purpose / settings / issues</span></div>' +

@@ -1,6 +1,6 @@
 /* VFX Shot Notes service worker: keeps the app working offline on set.
    Serves from cache first, then refreshes the cache in the background (bypassing the HTTP cache) so updates arrive quickly. */
-const CACHE = 'vfx-shot-notes-v11';
+const CACHE = 'vfx-shot-notes-v12';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/html2canvas.min.js', 'vendor/jspdf.umd.min.js',
   'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => {

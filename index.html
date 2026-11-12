@@ -166,6 +166,13 @@ body.exporting .photo:not(.has) .ph{display:grid}
 body:not(.view-dir) #dir, body:not(.view-projects) #projects, body:not(.view-sheet) main,
 body:not(.view-sheet) .actions, body:not(.view-sheet) .nav, body:not(.view-sheet) #status{display:none}
 body:not(.view-dir) #back{display:none}
+body:not(.view-settings) #settings, body:not(.view-settings) #backSettings{display:none}
+#settings{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
+.setblock{display:grid;gap:8px;justify-items:start;padding:16px 0;border-bottom:1px solid var(--line)}
+.setblock .rename{width:100%;margin-top:0}
+.sethead{margin:0 !important}
+.pdfmenu{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--sheet)}
+#pdf.menu-open{display:none}
 body.view-projects .toolbar{display:none}
 /* Project name gets its own full line above the shot controls, wrapping instead of being cut off */
 .projname{flex:1 1 100%;order:-1;font-weight:600;font-size:18px;line-height:1.25;color:var(--title);overflow-wrap:anywhere;text-wrap:balance}
@@ -203,13 +210,19 @@ body.view-projects .toolbar{display:none}
     </span>
   </div>
   <button id="back" type="button">‹ Back to shot</button>
+  <button id="backSettings" type="button">‹ All shots</button>
   <div class="actions">
     <button id="carry" class="carry" type="button">Next setup</button>
     <button id="blank" type="button">Blank shot</button>
     <button id="del" type="button">Delete shot</button>
     <span id="confirm" hidden><button id="confirmYes" class="danger" type="button">Delete this shot</button> <button id="confirmNo" type="button">Keep</button></span>
     <button id="pdf" class="primary" type="button">Save PDF</button>
-    <button id="pdfAll" class="primary" type="button">Save all shots</button>
+    <span id="pdfMenu" class="pdfmenu" hidden>
+      <button id="pdfOne" class="primary" type="button">This shot</button>
+      <button id="pdfDay" class="primary" type="button">This shoot day</button>
+      <button id="pdfAll" class="primary" type="button">Whole project</button>
+      <button id="pdfCancel" type="button">Cancel</button>
+    </span>
     <button id="sharePdf" class="primary" type="button" hidden>Share PDF</button>
   </div>
 </div>
@@ -240,26 +253,45 @@ body.view-projects .toolbar{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 11 · updated Nov 12, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 12 · updated Nov 12, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
 <section id="dir" aria-label="All shots">
   <div class="dirhead"><div style="flex:1 1 auto;min-width:0"><div class="dirsub">All shots</div><h1 id="dirTitle">Project</h1></div><span id="dirCount" class="sheetno"></span></div>
-  <div class="projtools">
-    <span class="restore">Import PDF<input type="file" id="importPdf" accept="application/pdf,.pdf" aria-label="Import shots from a VFX Shot Notes PDF"></span>
-    <button id="renameBtn" type="button">Rename project</button>
-    <button id="delProj" type="button">Delete project</button>
-    <span id="delProjAsk" hidden><button id="delProjYes" class="danger" type="button">Delete project and its shots</button> <button id="delProjNo" type="button">Keep</button></span>
-  </div>
-  <form id="renameForm" class="rename" hidden autocomplete="off">
-    <input id="renameInput" aria-label="Project name" enterkeyhint="done">
-    <button class="primary" type="submit">Save name</button>
-    <button id="renameCancel" type="button">Cancel</button>
-  </form>
-  <p id="dirStatus" class="libnote" role="status" style="margin-top:8px"></p>
+  <div class="projtools"><button id="settingsBtn" type="button">Project settings</button></div>
   <input id="search" class="search" type="search" placeholder="Search scene, shot, lens, location, notes…" aria-label="Search this project's shots" autocomplete="off" enterkeyhint="search">
   <div id="dirList"></div>
+</section>
+
+<!-- Project settings: import, rename, delete -->
+<section id="settings" aria-label="Project settings">
+  <div class="dirhead"><div style="flex:1 1 auto;min-width:0"><div class="dirsub">Project settings</div><h1 id="setTitle">Project</h1></div><span id="setCount" class="sheetno"></span></div>
+
+  <div class="setblock">
+    <h2 class="sethead">Import shots from a PDF</h2>
+    <p class="libnote">Add shots from a PDF saved by VFX Shot Notes, for example one a colleague sent you. They go to the end of this project.</p>
+    <span class="restore">Import PDF<input type="file" id="importPdf" accept="application/pdf,.pdf" aria-label="Import shots from a VFX Shot Notes PDF"></span>
+  </div>
+
+  <div class="setblock">
+    <h2 class="sethead">Project name</h2>
+    <form id="renameForm" class="rename" autocomplete="off">
+      <input id="renameInput" aria-label="Project name" enterkeyhint="done">
+      <button class="primary" type="submit">Save name</button>
+    </form>
+    <p class="libnote">Renaming also updates the Project box on this project's sheets.</p>
+  </div>
+
+  <div class="setblock">
+    <h2 class="sethead">Delete project</h2>
+    <p class="libnote">Removes this project and all its shots from this device. Back up first if you might need them.</p>
+    <div class="projtools">
+      <button id="delProj" class="danger" type="button">Delete project</button>
+      <span id="delProjAsk" hidden><button id="delProjYes" class="danger" type="button">Delete project and its shots</button> <button id="delProjNo" type="button">Keep</button></span>
+    </div>
+  </div>
+  <p id="dirStatus" class="libnote" role="status" style="margin-top:14px"></p>
 </section>
 
 <main id="sheet">
@@ -466,7 +498,7 @@ function render() {
   byId('prev').disabled = cur === 0;
   byId('next').disabled = cur === shots.length - 1;
   updateLegend();
-  hideConfirm();
+  hideConfirm(); closePdfMenu();
 }
 function updateLegend() {
   const s = shot();
@@ -523,7 +555,7 @@ form.addEventListener('keydown', e => {
 });
 
 /* ---------- Views ---------- */
-function setView(v) { document.body.classList.remove('view-projects', 'view-sheet', 'view-dir'); document.body.classList.add('view-' + v); window.scrollTo({top:0}); }
+function setView(v) { document.body.classList.remove('view-projects', 'view-sheet', 'view-dir', 'view-settings'); document.body.classList.add('view-' + v); window.scrollTo({top:0}); }
 function openProject(id, index) {
   curProject = id; cur = 0; refreshShots();
   cur = index ?? Math.min(curByProject[id] ?? shots.length - 1, shots.length - 1);
@@ -692,7 +724,7 @@ function attachData(pdf, payload) {
   });
 }
 async function exportShots(indices, filename) {
-  const btns = [byId('pdf'), byId('pdfAll')]; btns.forEach(b => b.disabled = true);
+  const btns = ['pdf', 'pdfOne', 'pdfDay', 'pdfAll'].map(byId); btns.forEach(b => b.disabled = true);
   const keep = cur;
   document.activeElement?.blur();
   document.body.classList.add('exporting');
@@ -733,8 +765,22 @@ async function exportShots(indices, filename) {
     status.textContent = 'Could not build the PDF. Try again in a moment.';
   } finally { btns.forEach(b => b.disabled = false); }
 }
-byId('pdf').onclick = () => exportShots([cur], nameFor(shot()));
-byId('pdfAll').onclick = () => exportShots(shots.map((_, i) => i), nameFor(shots[0], '_all-' + shots.length + '-shots'));
+/* One Save PDF button: this shot, this shoot day, or the whole project */
+const dayKey = s => [(s.values['Shoot day'] || '').trim(), (s.values.Date || '').trim()].join('|');
+function dayIndices() { const k = dayKey(shot()); return k === '|' ? [] : shots.map((s, i) => [s, i]).filter(([s]) => dayKey(s) === k && hasContent(s)).map(([, i]) => i); }
+function closePdfMenu() { byId('pdfMenu').hidden = true; byId('pdf').classList.remove('menu-open'); }
+byId('pdf').onclick = () => {
+  const day = dayIndices(), all = shots.filter(hasContent).length || 1, d = (shot().values['Shoot day'] || '').trim();
+  byId('pdfDay').hidden = day.length < 2;
+  byId('pdfDay').textContent = (d ? 'Shoot day ' + d : 'This date') + ' (' + day.length + ')';
+  byId('pdfAll').textContent = 'Whole project (' + all + ')';
+  byId('pdfAll').hidden = all < 2;
+  byId('pdfMenu').hidden = false; byId('pdf').classList.add('menu-open');
+};
+byId('pdfCancel').onclick = closePdfMenu;
+byId('pdfOne').onclick = () => { closePdfMenu(); exportShots([cur], nameFor(shot())); };
+byId('pdfDay').onclick = () => { closePdfMenu(); const ix = dayIndices(), d = (shot().values['Shoot day'] || '').trim(); exportShots(ix, nameFor(shots[ix[0]], '_' + (d ? 'day-' + d : 'date') + '_' + ix.length + '-shots')); };
+byId('pdfAll').onclick = () => { closePdfMenu(); const ix = shots.map((s, i) => [s, i]).filter(([s]) => hasContent(s)).map(([, i]) => i); const use = ix.length ? ix : [cur]; exportShots(use, nameFor(shots[use[0]], '_all-' + use.length + '-shots')); };
 
 /* ---------- Import shots from a PDF made by this app ---------- */
 function readPdf(buf) {
@@ -785,6 +831,7 @@ byId('importPdf').addEventListener('change', async e => {
       lib.shots.push(s); added++;
     }
     touchProject(); refreshShots(); save(); renderDir();
+    { const n = shots.filter(hasContent).length; byId('setCount').textContent = n + (n === 1 ? ' shot' : ' shots'); }
     ds.textContent = 'Imported ' + added + (added === 1 ? ' shot' : ' shots') + ' from “' + f.name + '”' + (skipped ? ' (' + skipped + ' already here, skipped)' : '') + '. They’re at the end of this project.';
   } catch { ds.textContent = 'Could not read that PDF.'; }
 });
@@ -880,7 +927,6 @@ function openDir(query) {
   setView('dir');
   byId('back').textContent = '‹ Back to shot ' + (cur + 1);
   byId('search').value = typeof query === 'string' ? query : '';
-  byId('dirStatus').textContent = ''; byId('renameForm').hidden = true; hideDelProj();
   renderDir();
   if (matchMedia('(pointer: fine)').matches) byId('search').focus({preventScroll:true});
 }
@@ -897,15 +943,23 @@ byId('search').addEventListener('keydown', e => {
   if (e.key === 'Escape') closeDir();
 });
 byId('dirList').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) closeDir(+it.dataset.i); });
-/* Rename and delete the project */
-byId('renameBtn').onclick = () => { const f = byId('renameForm'); f.hidden = false; byId('renameInput').value = project()?.name || ''; byId('renameInput').focus(); };
-byId('renameCancel').onclick = () => { byId('renameForm').hidden = true; };
+/* ---------- Project settings ---------- */
+function openSettings() {
+  setView('settings');
+  byId('setTitle').textContent = project()?.name || 'Project';
+  const n = shots.filter(hasContent).length;
+  byId('setCount').textContent = n + (n === 1 ? ' shot' : ' shots');
+  byId('renameInput').value = project()?.name || '';
+  byId('dirStatus').textContent = ''; hideDelProj();
+}
+byId('settingsBtn').onclick = openSettings;
+byId('backSettings').onclick = () => openDir();
 byId('renameForm').addEventListener('submit', e => {
   e.preventDefault();
   const p = project(), name = byId('renameInput').value.trim(); if (!p || !name) return;
   const old = p.name; p.name = name; p.updated = Date.now();
   for (const s of projShots(p.id)) if ((s.values.Project || '').trim() === old) s.values.Project = name; /* keep the Project box in step */
-  byId('renameForm').hidden = true; save(); renderDir(); render();
+  save(); render(); byId('setTitle').textContent = name;
   byId('dirStatus').textContent = 'Renamed to “' + name + '”.';
 });
 function hideDelProj() { byId('delProjAsk').hidden = true; byId('delProj').hidden = false; }

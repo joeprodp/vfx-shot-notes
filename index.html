@@ -419,14 +419,15 @@ byId('carry').onclick = () => {
     n.values[k] = v; n.carried[k] = true;
   }
   for (const [k, f] of Object.entries(s.photos)) { if (f) { n.photos[k] = f; n.photoCarried[k] = true; } }
-  shots.splice(cur + 1, 0, n);
-  go(cur + 1);
-  status.textContent = 'New setup copied from shot ' + cur + '. Blue italic boxes are unchanged; anything you edit turns normal. The take log starts empty.';
+  const from = cur + 1;
+  shots.push(n); /* new shots always go at the end of the day */
+  go(shots.length - 1);
+  status.textContent = 'New setup copied from shot ' + from + '. Blue italic boxes are unchanged; anything you edit turns normal. The take log starts empty.';
   byId('f-shot').focus();
 };
 byId('blank').onclick = () => {
-  shots.splice(cur + 1, 0, emptyShot());
-  go(cur + 1);
+  shots.push(emptyShot());
+  go(shots.length - 1);
   status.textContent = 'Blank shot added.';
   byId('f-project').focus();
 };

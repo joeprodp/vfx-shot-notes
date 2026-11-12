@@ -91,6 +91,15 @@ body.exporting #kb{display:none}
 .photo .rm{position:absolute;top:6px;right:6px;z-index:2;padding:4px 9px;font-size:12px;min-height:0}
 .photo:not(.has) .rm,.photo:not(.has) .tag{display:none}
 .photo.has .ph{display:none}
+/* Optional fifth image: a one-line link until used; prints on its own PDF page */
+.extra{margin-top:6px}
+.addextra{position:relative;display:inline-block;color:var(--accent);font-weight:600;font-size:14px;padding:8px 2px;cursor:pointer}
+.addextra input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.extraph{display:none;margin-top:4px}
+.extraph.has{display:grid}
+.extraph img{object-fit:contain;background:var(--field)}
+.extra:has(.extraph.has) .addextra{display:none}
+body.exporting .extra{display:none}
 
 button{font:500 14px var(--sans);padding:8px 13px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--fg);cursor:pointer;min-height:38px}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--sheet)}
@@ -190,6 +199,12 @@ body.exporting .photo:not(.has) .ph{display:grid}
 
   <h3>Photo References</h3>
   <div id="photos" class="photos"></div>
+  <div id="extraWrap" class="extra">
+    <span class="addextra">+ Add diagram or extra photo<input type="file" id="p-extra-add" accept="image/*" name="Diagram / extra" aria-label="Add a diagram or extra photo"></span>
+    <div class="photo extraph" data-name="Diagram / extra"><img hidden alt="Diagram or extra photo"><span class="tag">DIAGRAM / EXTRA · PRINTS ON ITS OWN PAGE</span>
+      <input type="file" id="p-extra" accept="image/*" name="Diagram / extra" aria-label="Replace the diagram or extra photo">
+      <button type="button" class="rm" aria-label="Remove diagram or extra photo">Remove</button></div>
+  </div>
 </form>
 </main>
 
@@ -234,6 +249,7 @@ byId('acq').innerHTML =
   row('33.3fr 33.3fr 33.4fr', '1fr', [['Clean plate','Clean plate'],['Color chart','Color chart'],['HDRI / 360°','HDRI']]) +
   row('33.3fr 33.3fr 33.4fr', '1fr', [['Element passes','Element passes'],['Scan / photogrammetry','Scan'],['Ref stills / video','Ref stills']]);
 const PHOTO_NAMES = ['Lens / camera','Camera position','Lighting / set','Monitor frame'];
+const EXTRA = 'Diagram / extra';
 byId('photos').innerHTML = PHOTO_NAMES.map(name => {
   const id = 'p-' + slug(name);
   return '<div class="photo" data-name="' + name + '"><span class="ph">' + name.toUpperCase() + '<small>ADD PHOTO</small></span>' +
@@ -345,7 +361,7 @@ function render() {
     el.value = s.values[el.name] ?? '';
     el.classList.toggle('carried', !!(s.carried[el.name] && el.value));
   });
-  PHOTO_NAMES.forEach(n => setPhoto(n, s.photos[n], s.photoCarried[n]));
+  [...PHOTO_NAMES, EXTRA].forEach(n => setPhoto(n, s.photos[n], s.photoCarried[n]));
   byId('count').textContent = 'Shot ' + (cur + 1) + ' of ' + shots.length;
   byId('sheetno').textContent = 'Sheet ' + (cur + 1) + ' of ' + shots.length;
   byId('prev').disabled = cur === 0;
@@ -457,6 +473,37 @@ function nameFor(s, suffix) {
 async function waitImages() {
   await Promise.all([...form.querySelectorAll('.photo img:not([hidden])')].map(img => img.decode ? img.decode().catch(() => {}) : null));
 }
+/* The diagram / extra photo gets its own page after its shot's sheet */
+async function imageData(blob) {
+  const u = URL.createObjectURL(blob), im = new Image();
+  try {
+    im.src = u; await im.decode();
+    const sc = Math.min(1, 2400 / Math.max(im.naturalWidth, im.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(im.naturalWidth * sc); c.height = Math.round(im.naturalHeight * sc);
+    const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+    return {data: c.toDataURL('image/jpeg', .9), w: c.width, h: c.height};
+  } finally { URL.revokeObjectURL(u); }
+}
+async function extraPage(pdf, s, i, m, W, H) {
+  const v = k => (s.values[k] || '').trim();
+  pdf.setFont('helvetica', 'normal'); pdf.setFontSize(20); pdf.setTextColor(43, 69, 102);
+  pdf.text('VFX On-Set Shot Notes', m + .05, m + .3);
+  pdf.setFontSize(10); pdf.setTextColor(79, 100, 116);
+  pdf.text(('Sheet ' + (i + 1) + ' of ' + shots.length).toUpperCase(), 8.5 - m - .05, m + .3, {align: 'right'});
+  pdf.setDrawColor(127, 147, 164); pdf.setLineWidth(.015); pdf.line(m, m + .42, 8.5 - m, m + .42);
+  const sub = ['DIAGRAM / EXTRA', v('Project'), v('Scene') && 'Sc ' + v('Scene'), v('Shot') && 'Shot ' + v('Shot'), v('Shoot day') && 'Day ' + v('Shoot day'), v('Date')].filter(Boolean).join('  ·  ');
+  pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(23, 35, 44);
+  pdf.text(sub, m + .05, m + .7);
+  let top = m + .9;
+  if (s.photoCarried[EXTRA]) {
+    pdf.setFont('helvetica', 'italic'); pdf.setFontSize(10); pdf.setTextColor(74, 95, 193);
+    pdf.text('Unchanged from the previous setup', m + .05, m + .92); top = m + 1.1;
+  }
+  const img = await imageData(s.photos[EXTRA]);
+  const bh = 14 - m - top, r = Math.min(W / img.w, bh / img.h), w = img.w * r, h = img.h * r;
+  pdf.addImage(img.data, 'JPEG', (8.5 - w) / 2, top, w, h);
+}
 async function exportShots(indices, filename) {
   const btns = [byId('pdf'), byId('pdfAll')]; btns.forEach(b => b.disabled = true);
   const keep = cur;
@@ -466,13 +513,16 @@ async function exportShots(indices, filename) {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({orientation:'portrait', unit:'in', format:[8.5,14]});
     const m = .25, W = 8.5 - 2*m, H = 14 - 2*m;
+    let pages = 0;
     for (let k = 0; k < indices.length; k++) {
       status.textContent = 'Building the PDF… page ' + (k + 1) + ' of ' + indices.length;
       cur = indices[k]; render(); await waitImages();
       const canvas = await html2canvas(byId('sheet'), {scale:2.5, backgroundColor:'#ffffff', windowWidth:900});
       const r = Math.min(W / canvas.width, H / canvas.height), w = canvas.width * r, h = canvas.height * r;
-      if (k) pdf.addPage([8.5,14], 'portrait');
+      if (pages++) pdf.addPage([8.5,14], 'portrait');
       pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', (8.5 - w) / 2, m, w, h);
+      const s = shots[cur];
+      if (s.photos[EXTRA]) { pdf.addPage([8.5,14], 'portrait'); pages++; await extraPage(pdf, s, cur, m, W, H); }
     }
     document.body.classList.remove('exporting');
     cur = keep; render();

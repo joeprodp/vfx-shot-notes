@@ -112,6 +112,15 @@ button:disabled{opacity:.45;cursor:default}
 /* Directory of all shots */
 #dir{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
 .dirhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1.5px solid var(--rule);padding-bottom:10px}
+.library{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-top:12px}
+.restore{position:relative;display:inline-flex;align-items:center;font:500 14px var(--sans);padding:8px 13px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--fg);min-height:38px;cursor:pointer}
+.restore input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.restore:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.libnote{color:var(--muted);font-size:13px;margin:0}
+#libStatus{margin-top:8px}
+#libStatus:empty{display:none}
+.restoreask{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:4px;background:var(--field)}
+.restoreask span{flex:1 1 100%;font-size:14px}
 .dirhead h1{flex:1 1 auto}
 .search{width:100%;margin-top:12px;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:11px 12px;border-radius:4px}
 .search:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent);background:var(--field-focus)}
@@ -178,6 +187,19 @@ body.exporting .photo:not(.has) .ph{display:grid}
 
 <section id="dir" aria-label="All shots">
   <div class="dirhead"><h1>All Shots</h1><span id="dirCount" class="sheetno"></span></div>
+  <div class="library">
+    <button id="backup" type="button">Back up all shots</button>
+    <button id="shareBackup" class="primary" type="button" hidden>Share backup</button>
+    <span class="restore">Restore from backup<input type="file" id="restoreFile" accept=".json,application/json" aria-label="Choose a backup file to restore"></span>
+    <span id="lastBackup" class="libnote"></span>
+  </div>
+  <div id="restoreAsk" class="restoreask" hidden>
+    <span id="restoreMsg"></span>
+    <button id="restoreMerge" class="primary" type="button">Add to my shots</button>
+    <button id="restoreReplace" class="danger" type="button">Replace my shots</button>
+    <button id="restoreCancel" type="button">Cancel</button>
+  </div>
+  <p id="libStatus" class="libnote" role="status"></p>
   <input id="search" class="search" type="search" placeholder="Search scene, shot, lens, location, notes…" aria-label="Search all shots" autocomplete="off" enterkeyhint="search">
   <div id="dirList"></div>
 </section>
@@ -290,8 +312,9 @@ kb.addEventListener('click', e => {
 });
 
 /* ---------- Shot data ---------- */
-const emptyShot = () => ({values:{}, carried:{}, photos:{}, photoCarried:{}});
-let shots = [emptyShot()], cur = 0;
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const emptyShot = () => { const t = Date.now(); return {id:newId(), created:t, updated:t, values:{}, carried:{}, photos:{}, photoCarried:{}}; };
+let shots = [emptyShot()], cur = 0, lastBackup = null;
 const shot = () => shots[cur];
 
 /* ---------- Storage: a per-browser convenience ---------- */
@@ -312,7 +335,7 @@ function save() {
   saveTimer = setTimeout(async () => {
     try {
       const tx = (await db).transaction('state','readwrite');
-      tx.objectStore('state').put({shots, cur}, 'doc');
+      tx.objectStore('state').put({shots, cur, lastBackup}, 'doc');
       tx.onerror = warn; tx.onabort = warn;
     } catch { warn(); }
   }, 250);
@@ -321,7 +344,12 @@ async function load() {
   try {
     const d = await db;
     const got = await new Promise((res, rej) => { const r = d.transaction('state').objectStore('state').get('doc'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-    if (got?.shots?.length) { shots = got.shots; cur = Math.min(got.cur || 0, shots.length - 1); return; }
+    if (got?.shots?.length) {
+      shots = got.shots; cur = Math.min(got.cur || 0, shots.length - 1); lastBackup = got.lastBackup || null;
+      const t = Date.now(); /* give older shots the ids that backup / restore uses to match them */
+      shots.forEach((s, i) => { s.id = s.id || newId(); s.created = s.created || t - (shots.length - i) * 1000; s.updated = s.updated || s.created; });
+      return;
+    }
     /* Bring over a draft from the previous version of this page, if any */
     const old = await new Promise(res => {
       try {
@@ -379,22 +407,37 @@ form.addEventListener('submit', e => e.preventDefault());
 form.addEventListener('input', ({target}) => {
   if (!target.classList.contains('box')) return;
   const s = shot();
-  s.values[target.name] = target.value;
+  s.values[target.name] = target.value; s.updated = Date.now();
   if (s.carried[target.name]) { delete s.carried[target.name]; target.classList.remove('carried'); updateLegend(); }
   save();
 });
-form.addEventListener('change', ({target}) => {
+/* Photos are stored at up to 2400 px on the long edge: plenty for reference, and keeps PDFs and backups small */
+async function shrink(file, max = 2400) {
+  const u = URL.createObjectURL(file);
+  try {
+    const im = new Image(); im.src = u; await im.decode();
+    const sc = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+    if (sc === 1 && file.size < 1.5e6 && /jpe?g/.test(file.type)) return file;
+    const c = document.createElement('canvas');
+    c.width = Math.round(im.naturalWidth * sc); c.height = Math.round(im.naturalHeight * sc);
+    const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+    return (await new Promise(r => c.toBlob(r, 'image/jpeg', .85))) || file;
+  } catch { return file; } finally { URL.revokeObjectURL(u); }
+}
+form.addEventListener('change', async ({target}) => {
   if (target.type !== 'file' || !target.files[0]) return;
-  const s = shot(), file = target.files[0];
-  s.photos[target.name] = file; delete s.photoCarried[target.name];
-  setPhoto(target.name, file, false); updateLegend(); save();
+  const s = shot(), name = target.name, raw = target.files[0];
   target.value = '';
+  const file = await shrink(raw);
+  s.photos[name] = file; delete s.photoCarried[name]; s.updated = Date.now();
+  if (s === shot()) { setPhoto(name, file, false); updateLegend(); }
+  save();
 });
 form.addEventListener('click', e => {
   const rm = e.target.closest('.rm'); if (!rm) return;
   e.preventDefault();
   const name = rm.closest('.photo').dataset.name, s = shot();
-  delete s.photos[name]; delete s.photoCarried[name];
+  delete s.photos[name]; delete s.photoCarried[name]; s.updated = Date.now();
   setPhoto(name, null); updateLegend(); save();
 });
 /* Return moves to the next box (Shift+Return keeps a new line in text areas; the notes box always takes new lines) */
@@ -446,13 +489,14 @@ byId('confirmYes').onclick = () => {
 /* ---------- PDF export: one US Legal portrait page per shot ---------- */
 /* Hand the PDF to the iOS share sheet (Notability, Files, AirDrop, Mail); download elsewhere */
 let pendingFile = null;
-async function deliver(blob, filename) {
-  const file = new File([blob], filename, {type:'application/pdf'});
+async function deliver(blob, filename, mime = 'application/pdf') {
+  const file = new File([blob], filename, {type:mime});
   if (navigator.canShare && navigator.canShare({files:[file]})) {
     try { await navigator.share({files:[file], title:filename}); return 'shared'; }
     catch (e) {
       if (e && e.name === 'AbortError') return 'cancelled';
-      pendingFile = file; byId('sharePdf').hidden = false; return 'ready'; /* share needs a fresh tap */
+      pendingFile = file; byId(mime === 'application/pdf' ? 'sharePdf' : 'shareBackup').hidden = false;
+      return 'ready'; /* share needs a fresh tap */
     }
   }
   const a = document.createElement('a');
@@ -461,11 +505,14 @@ async function deliver(blob, filename) {
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   return 'downloaded';
 }
-byId('sharePdf').onclick = async () => {
+async function shareAgain(btn) {
   if (!pendingFile) return;
-  try { await navigator.share({files:[pendingFile], title:pendingFile.name}); status.textContent = 'PDF sent.'; pendingFile = null; byId('sharePdf').hidden = true; }
-  catch (e) { status.textContent = e && e.name === 'AbortError' ? 'PDF not sent. Tap Share PDF to try again.' : 'Could not open the share sheet.'; }
-};
+  try { await navigator.share({files:[pendingFile], title:pendingFile.name}); status.textContent = 'Sent.'; byId('libStatus').textContent = 'Sent.'; pendingFile = null; btn.hidden = true; }
+  catch (e) { const m = e && e.name === 'AbortError' ? 'Not sent. Tap the share button to try again.' : 'Could not open the share sheet.'; status.textContent = m; byId('libStatus').textContent = m; }
+}
+byId('sharePdf').onclick = () => shareAgain(byId('sharePdf'));
+byId('shareBackup').onclick = () => shareAgain(byId('shareBackup'));
+const saveFile = (blob, filename, mime) => deliver(blob, filename, mime);
 function nameFor(s, suffix) {
   const v = k => (s.values[k] || '').trim();
   const parts = [v('Project'), v('Scene') && 'Sc' + v('Scene'), v('Shot') && 'Sh' + v('Shot'), v('Date')].filter(Boolean);
@@ -640,6 +687,82 @@ byId('search').addEventListener('keydown', e => {
   if (e.key === 'Escape') closeDir();
 });
 byId('dirList').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) closeDir(+it.dataset.i); });
+
+/* ---------- Backup and restore: the whole library, photos included, as one file ---------- */
+const toDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+function fromDataUrl(url) {
+  const [head, data] = String(url).split(',');
+  const mime = (head.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+  const bin = atob(data), a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return new Blob([a], {type: mime});
+}
+const stamp = (d = new Date()) => { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()); };
+const when = t => new Date(t).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+function showLastBackup() { byId('lastBackup').textContent = lastBackup ? 'Last backup: ' + when(lastBackup) : 'No backup yet'; }
+const hasContent = s => Object.values(s.values).some(v => String(v).trim()) || Object.values(s.photos).some(Boolean);
+byId('backup').onclick = async () => {
+  const btn = byId('backup'), ls = byId('libStatus');
+  btn.disabled = true; ls.textContent = 'Preparing backup…';
+  try {
+    const out = [];
+    for (const s of shots) {
+      const photos = {};
+      for (const [k, f] of Object.entries(s.photos)) if (f) photos[k] = await toDataUrl(f);
+      out.push({id:s.id, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photos});
+    }
+    const json = JSON.stringify({app:'vfx-shot-notes', format:1, exported:new Date().toISOString(), shots:out});
+    const r = await saveFile(new Blob([json], {type:'application/json'}), 'VFX_Shot_Notes_backup_' + stamp() + '_' + shots.length + '-shots.json', 'application/json');
+    if (r === 'saved' || r === 'shared' || r === 'downloaded') { lastBackup = Date.now(); save(); showLastBackup(); }
+    const mb = (json.length / 1048576).toFixed(1);
+    ls.textContent = r === 'cancelled' ? 'Backup not saved.' :
+      r === 'ready' ? 'Backup ready. Tap Share backup and choose Save to Files → iCloud Drive.' :
+      'Backup saved: ' + shots.length + (shots.length === 1 ? ' shot, ' : ' shots, ') + mb + ' MB.';
+  } catch (e) { ls.textContent = e && e.code === 'declined' ? 'Backup not saved.' : 'Could not make the backup. Try again.'; }
+  finally { btn.disabled = false; }
+};
+let incoming = null;
+byId('restoreFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const ls = byId('libStatus');
+  try {
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'vfx-shot-notes' || !Array.isArray(d.shots)) throw new Error('not a backup');
+    incoming = d.shots.map(s => ({id: s.id || newId(), created: s.created || Date.now(), updated: s.updated || s.created || Date.now(),
+      values: s.values || {}, carried: s.carried || {}, photoCarried: s.photoCarried || {},
+      photos: Object.fromEntries(Object.entries(s.photos || {}).map(([k, v]) => [k, fromDataUrl(v)]))}));
+    const known = new Set(shots.map(s => s.id)), fresh = incoming.filter(s => !known.has(s.id)).length;
+    byId('restoreMsg').textContent = 'Backup from ' + when(d.exported) + ': ' + incoming.length + (incoming.length === 1 ? ' shot' : ' shots') +
+      ', ' + fresh + ' not on this device yet. Add them to your shots, or replace everything on this device?';
+    byId('restoreAsk').hidden = false; ls.textContent = '';
+  } catch { incoming = null; byId('restoreAsk').hidden = true; ls.textContent = 'That file isn’t a VFX Shot Notes backup.'; }
+});
+function finishRestore(msg) {
+  shots.sort((a, b) => (a.created || 0) - (b.created || 0));
+  incoming = null; byId('restoreAsk').hidden = true;
+  cur = shots.length - 1; save(); render(); renderDir();
+  byId('libStatus').textContent = msg;
+}
+byId('restoreCancel').onclick = () => { incoming = null; byId('restoreAsk').hidden = true; byId('libStatus').textContent = 'Restore cancelled. Nothing changed.'; };
+byId('restoreMerge').onclick = () => {
+  if (!incoming) return;
+  const mine = new Map(shots.map(s => [s.id, s])); let added = 0, newer = 0;
+  for (const s of incoming) {
+    const m = mine.get(s.id);
+    if (!m) { shots.push(s); added++; }
+    else if ((s.updated || 0) > (m.updated || 0)) { Object.assign(m, s); newer++; }
+  }
+  shots = shots.filter(hasContent); if (!shots.length) shots = [emptyShot()];
+  finishRestore('Added ' + added + (added === 1 ? ' shot' : ' shots') + (newer ? ' and updated ' + newer + ' with newer edits' : '') + '. Now ' + shots.length + ' in total.');
+};
+byId('restoreReplace').onclick = () => {
+  if (!incoming) return;
+  shots = incoming.length ? incoming : [emptyShot()];
+  finishRestore('Replaced with the backup: ' + shots.length + (shots.length === 1 ? ' shot.' : ' shots.'));
+};
+const _openDir = openDir;
+openDir = function () { _openDir(); showLastBackup(); byId('libStatus').textContent = ''; byId('restoreAsk').hidden = true; incoming = null; };
+byId('dirBtn').onclick = openDir;
 
 load().then(render);
 

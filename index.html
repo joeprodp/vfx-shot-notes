@@ -73,12 +73,30 @@ body.exporting #kb{display:none}
 .box.carried:focus{background:var(--field-focus)}
 
 /* Take log */
+.log{--cols:10fr 21.5fr 68.5fr}
+.log.two{--cols:10fr 15fr 15fr 60fr}
+.log:not(.two) .bclip, .log:not(.two) .two-cam, .log.two .one-cam{display:none}
 .log .row{margin-top:0}
 .log .row:not(.head)+.row .box{border-top-width:0}
 .log .head .cap{padding-top:2px}
 
 /* Photo references */
 .photos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.photos.two{grid-template-columns:repeat(3,1fr)}
+.photos:not(.two) .monb{display:none}
+/* Camera grid: labels down the left, A and B side by side */
+.camtitle{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.linkbtn{min-height:0;padding:3px 9px;font:600 12px var(--sans);letter-spacing:.02em;text-transform:none;border-color:var(--accent);color:var(--accent);background:transparent}
+.camgrid{display:grid;grid-template-columns:minmax(96px,150px) minmax(0,1fr);margin-top:6px}
+.camgrid.two{grid-template-columns:minmax(96px,150px) minmax(0,1fr) minmax(0,1fr)}
+.camgrid:not(.two) .cg-b{display:none}
+.camgrid .cg-shared{grid-column:2 / -1}
+.cg-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--title);padding:0 8px 3px}
+.cg-l{font-size:11px;font-weight:700;display:flex;align-items:center;padding:0 8px 0 4px;border-bottom:1px solid var(--line);min-width:0;overflow:hidden;text-overflow:ellipsis;cursor:text}
+.cgc{position:relative;display:block;min-width:0;margin:-1px 0 0 -1px}
+.camgrid .box{width:calc(100% + 1px)}
+.cgc:has(#kb) .box{padding-right:52px}
+.camgrid .box:focus{z-index:2}
 .photo{position:relative;aspect-ratio:16/9;max-width:100%;border:1.5px solid var(--line);background:var(--field);overflow:hidden;display:grid;place-items:center;text-align:center;cursor:pointer}
 .photo:focus-within{box-shadow:inset 0 0 0 2px var(--accent)}
 .photo input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
@@ -147,13 +165,19 @@ mark{background:color-mix(in srgb,var(--accent) 25%,transparent);color:inherit;p
   .row{grid-template-columns:var(--cols-sm,var(--cols))}
   .row.wrap .cell:nth-child(odd) .box{border-left-width:1px}
   .row.wrap .cell:nth-child(n+3) .box{border-top-width:0}
-  .photos{grid-template-columns:1fr}
+  .photos, .photos.two{grid-template-columns:1fr}
+  .camgrid, .camgrid.two{grid-template-columns:84px minmax(0,1fr)}
+  .camgrid.two{grid-template-columns:84px minmax(0,1fr) minmax(0,1fr)}
+  .cg-l{font-size:10px;padding-right:4px}
 }
 /* Export: fixed sheet width, light palette, no controls */
 body.exporting{--sheet:#ffffff;--fg:#17232c;--title:#2b4566;--muted:#4f6474;--field:#eef2f5;--line:#a9b7c2;--rule:#7f93a4;--carried:#4a5fc1;--carried-field:#eceffb}
 body.exporting main{width:816px;max-width:none;padding:24px 26px;border-radius:0}
 body.exporting .row{grid-template-columns:var(--cols)}
 body.exporting .photos{grid-template-columns:1fr 1fr}
+body.exporting .photos.two{grid-template-columns:repeat(3,1fr)}
+body.exporting .camgrid .box{min-height:30px;padding:5px 7px}
+body.exporting .linkbtn{display:none}
 body.exporting .rm,body.exporting .photo .ph{display:none}
 body.exporting .box{font-size:13px;min-height:34px;padding:7px 7px}
 body.exporting .photo:not(.has) .ph{display:grid}
@@ -253,7 +277,7 @@ body.view-projects .toolbar{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 12 · updated Nov 12, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 13 · updated Nov 12, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
@@ -300,7 +324,7 @@ body.view-projects .toolbar{display:none}
 <form id="shot" autocomplete="off">
   <h2>Shot details</h2>
   <div id="details"></div>
-  <h2>Camera and lens</h2>
+  <h2 class="camtitle">Camera and lens <button type="button" id="bOn" class="linkbtn">+ B cam</button><button type="button" id="bOff" class="linkbtn" hidden>Remove B cam</button></h2>
   <div id="camera"></div>
   <h2>Take and clip log</h2>
   <div id="takes" class="log"></div>
@@ -343,29 +367,37 @@ byId('details').innerHTML =
   row('46fr 25.5fr 28.5fr', '1fr 1fr', [['Project','Project'],['Shoot day','Shoot day','decimal'],['Date','Date','decimal']], 'wrap') +
   row('25fr 28fr 47fr', '1fr 1fr', [['Scene','Scene'],['Shot','Shot'],['Location','Location']], 'wrap') +
   row('1fr', '', [['Shot description / action','Shot description','area']]);
-byId('camera').innerHTML =
-  row('repeat(4,1fr)', '1fr 1fr', [['Camera / roll','Camera roll'],['Lens / focal length','Lens','decimal'],['T-stop','T-stop','decimal'],['Filters','Filters']], 'wrap') +
-  row('repeat(4,1fr)', '1fr 1fr', [['Resolution / mode','Resolution','decimal'],['Framing','Framing','decimal'],['ISO / EI','ISO','numeric'],['WB / K','WB','numeric']], 'wrap') +
-  row('repeat(4,1fr)', '1fr 1fr', [['FPS','FPS','decimal'],['Shutter','Shutter','decimal'],['Height','Height'],['Tilt / direction','Tilt','decimal']], 'wrap') +
-  row('1fr 1fr', '', [['Subject distance','Subject distance'],['Background distance','Background distance']]);
+/* Camera and lens: one column per camera (A, and B when it's added), labels down the left; Resolution and Framing are shared */
+const CAM_FIELDS = [['Camera / roll','Camera roll',''],['Lens / focal length','Lens','decimal'],['T-stop','T-stop','decimal'],['Filters','Filters',''],
+  ['ISO / EI','ISO','numeric'],['WB / K','WB','numeric'],['FPS','FPS','decimal'],['Shutter','Shutter','decimal'],
+  ['Height','Height',''],['Tilt / direction','Tilt','decimal'],['Subject distance','Subject distance',''],['Background distance','Background distance','']];
+const SHARED_FIELDS = [['Resolution / mode','Resolution','decimal'],['Framing','Framing','decimal']];
+const camInput = (id, name, mode, label, extra = '') => '<span class="cgc' + extra + '"><input class="box" id="' + id + '" name="' + name + '"' + (mode ? ' inputmode="' + mode + '"' : '') + ' enterkeyhint="next" aria-label="' + label + '"></span>';
+byId('camera').innerHTML = '<div class="camgrid" id="camgrid">' +
+  '<span class="cg-h"></span><span class="cg-h">A cam</span><span class="cg-h cg-b">B cam</span>' +
+  CAM_FIELDS.map(([cap, name, mode]) => '<label class="cg-l" for="f-' + slug(name) + '">' + cap + '</label>' +
+    camInput('f-' + slug(name), name, mode, 'A cam ' + cap) + camInput('f-b-' + slug(name), 'B ' + name, mode, 'B cam ' + cap, ' cg-b')).join('') +
+  SHARED_FIELDS.map(([cap, name, mode]) => '<label class="cg-l" for="f-' + slug(name) + '">' + cap + '</label>' +
+    camInput('f-' + slug(name), name, mode, cap, ' cg-shared')).join('') + '</div>';
 const TAKE_ROWS = 4;
 byId('takes').innerHTML =
-  '<div class="row head" style="--cols:10fr 21.5fr 68.5fr"><span class="cap">Take</span><span class="cap">Roll / clip</span><span class="cap">Purpose / settings / issues</span></div>' +
+  '<div class="row head"><span class="cap">Take</span><span class="cap"><span class="one-cam">Roll / clip</span><span class="two-cam">A clip</span></span><span class="cap bclip">B clip</span><span class="cap">Purpose / settings / issues</span></div>' +
   Array.from({length:TAKE_ROWS}, (_, i) =>
-    '<div class="row" style="--cols:10fr 21.5fr 68.5fr">' +
-    [['Take','numeric'],['Roll / clip','decimal'],['Purpose / settings / issues','']].map(([name, mode]) => {
+    '<div class="row">' +
+    [['Take','numeric',''],['Roll / clip','decimal',''],['B Roll / clip','decimal',' bclip'],['Purpose / settings / issues','','']].map(([name, mode, cls]) => {
       const id = 't-' + slug(name) + '-' + i;
-      return '<label class="cell" for="' + id + '"><input class="box" id="' + id + '" name="' + name + ' ' + (i+1) + '" data-take aria-label="' + name + ', row ' + (i+1) + '"' + (mode ? ' inputmode="' + mode + '"' : '') + ' enterkeyhint="next"></label>';
+      return '<label class="cell' + cls + '" for="' + id + '"><input class="box" id="' + id + '" name="' + name + ' ' + (i+1) + '" data-take aria-label="' + name + ', row ' + (i+1) + '"' + (mode ? ' inputmode="' + mode + '"' : '') + ' enterkeyhint="next"></label>';
     }).join('') + '</div>').join('');
 byId('acq').innerHTML =
   row('33.3fr 33.3fr 33.4fr', '1fr', [['Clean plate','Clean plate'],['Color chart','Color chart'],['HDRI / 360°','HDRI']]) +
   row('33.3fr 33.3fr 33.4fr', '1fr', [['Element passes','Element passes'],['Scan / photogrammetry','Scan'],['Ref stills / video','Ref stills']]);
-const PHOTO_NAMES = ['Lens / camera','Camera position','Lighting / set','Monitor frame'];
+const PHOTO_NAMES = ['Lens / camera','Camera position','Lighting / set','Monitor frame','Monitor frame B'];
 const EXTRA = 'Diagram / extra';
 byId('photos').innerHTML = PHOTO_NAMES.map(name => {
   const id = 'p-' + slug(name);
-  return '<div class="photo" data-name="' + name + '"><span class="ph">' + name.toUpperCase() + '<small>ADD PHOTO</small></span>' +
-    '<img hidden alt="' + name + ' reference"><span class="tag">' + name.toUpperCase() + '</span>' +
+  const label = name === 'Monitor frame B' ? 'MONITOR FRAME · B CAM' : name.toUpperCase();
+  return '<div class="photo' + (name === 'Monitor frame B' ? ' monb' : '') + '" data-name="' + name + '"><span class="ph"><span class="phl">' + label + '</span><small>ADD PHOTO</small></span>' +
+    '<img hidden alt="' + name + ' reference"><span class="tag">' + label + '</span>' +
     '<input type="file" id="' + id + '" accept="image/*" name="' + name + '" aria-label="Add or replace photo: ' + name + '">' +
     '<button type="button" class="rm" aria-label="Remove ' + name + ' photo">Remove</button></div>';
 }).join('');
@@ -492,6 +524,7 @@ function render() {
     el.classList.toggle('carried', !!(s.carried[el.name] && el.value));
   });
   [...PHOTO_NAMES, EXTRA].forEach(n => setPhoto(n, s.photos[n], s.photoCarried[n]));
+  showBcam(!!s.bcam);
   byId('count').textContent = 'Shot ' + (cur + 1) + ' of ' + shots.length;
   byId('sheetno').textContent = 'Sheet ' + (cur + 1) + ' of ' + shots.length;
   byId('projName').textContent = project()?.name || '';
@@ -500,6 +533,14 @@ function render() {
   updateLegend();
   hideConfirm(); closePdfMenu();
 }
+function showBcam(on) {
+  byId('camgrid').classList.toggle('two', on); byId('takes').classList.toggle('two', on); byId('photos').classList.toggle('two', on);
+  byId('bOn').hidden = on; byId('bOff').hidden = !on;
+  const mon = form.querySelector('.photo[data-name="Monitor frame"]');
+  mon.querySelector('.phl').textContent = mon.querySelector('.tag').textContent = on ? 'MONITOR FRAME · A CAM' : 'MONITOR FRAME';
+}
+byId('bOn').onclick = () => { const s = shot(); s.bcam = true; s.updated = Date.now(); touchProject(); showBcam(true); save(); byId('f-b-camera-roll').focus(); };
+byId('bOff').onclick = () => { const s = shot(); s.bcam = false; s.updated = Date.now(); touchProject(); showBcam(false); save(); status.textContent = 'B cam hidden on this shot. Its values are kept; tap + B cam to bring them back.'; };
 function updateLegend() {
   const s = shot();
   byId('legend').hidden = !(Object.keys(s.carried).some(k => s.values[k]) || Object.keys(s.photoCarried).some(k => s.photos[k]));
@@ -550,7 +591,7 @@ form.addEventListener('keydown', e => {
   if (!t.classList?.contains('box')) return;
   if (t.tagName === 'TEXTAREA' && (e.shiftKey || t.id === 'f-notes')) return;
   e.preventDefault();
-  const n = boxes[boxes.indexOf(t) + 1];
+  const n = boxes.slice(boxes.indexOf(t) + 1).find(b => b.offsetParent !== null);
   if (n) n.focus(); else t.blur();
 });
 
@@ -575,6 +616,7 @@ byId('carry').onclick = () => {
     n.values[k] = v; n.carried[k] = true;
   }
   for (const [k, f] of Object.entries(s.photos)) { if (f) { n.photos[k] = f; n.photoCarried[k] = true; } }
+  n.bcam = !!s.bcam;
   const from = cur + 1;
   addShot(n); touchProject(); /* new shots always go at the end of the day */
   go(shots.length - 1);
@@ -745,12 +787,12 @@ async function exportShots(indices, filename) {
       try { textLayer(pdf, r * 2.5, (8.5 - w) / 2, m); } catch {} /* searchable text; the sheet image is unaffected if this fails */
       const s = shots[cur], px = canvas.width / base.width, photoRects = {};
       for (const n of PHOTO_NAMES) {
-        if (!s.photos[n]) continue;
+        if (!s.photos[n] || (n === 'Monitor frame B' && !s.bcam)) continue;
         const b = form.querySelector('.photo[data-name="' + n + '"]').getBoundingClientRect();
         photoRects[n] = [(b.left - base.left) * px, (b.top - base.top) * px, b.width * px, b.height * px].map(Math.round);
       }
       data.images.push({type:'sheet', shot:k});
-      data.shots.push({id:s.id, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photoRects});
+      data.shots.push({id:s.id, bcam:!!s.bcam, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photoRects});
       if (s.photos[EXTRA]) { pdf.addPage([8.5,14], 'portrait'); pages++; await extraPage(pdf, s, cur, m, W, H, 'extra' + k); data.images.push({type:'extra', shot:k}); }
     }
     attachData(pdf, JSON.stringify(data));
@@ -825,7 +867,7 @@ byId('importPdf').addEventListener('change', async e => {
     for (let k = 0; k < got.data.shots.length; k++) {
       const src = got.data.shots[k];
       if (src.id && known.has(src.id)) { skipped++; continue; }
-      const s = {id: src.id || newId(), projectId: curProject, created: now(), updated: Date.now(), values: src.values || {}, carried: src.carried || {}, photoCarried: src.photoCarried || {}, photos: {}};
+      const s = {id: src.id || newId(), bcam: !!src.bcam, projectId: curProject, created: now(), updated: Date.now(), values: src.values || {}, carried: src.carried || {}, photoCarried: src.photoCarried || {}, photos: {}};
       for (const [n, rect] of Object.entries(src.photoRects || {})) if (sheetImg[k]) { try { s.photos[n] = await cropTo(sheetImg[k], rect); } catch {} }
       if (extraImg[k]) s.photos[EXTRA] = extraImg[k];
       lib.shots.push(s); added++;
@@ -910,7 +952,8 @@ function renderDir() {
       let thumb = '<span class="thumb">No photo</span>';
       if (pic) { const u = URL.createObjectURL(pic); dirUrls.push(u); thumb = '<span class="thumb"><img src="' + u + '" alt=""></span>'; }
       const takes = Array.from({length:TAKE_ROWS}, (_, r) => v('Take ' + (r + 1)) || v('Roll / clip ' + (r + 1))).filter(Boolean).length;
-      const chips = [['Lens', v('Lens')], ['T', v('T-stop')], ['ISO', v('ISO')], ['Cam', v('Camera roll')], ['Loc', v('Location')], ['Takes', takes || '']]
+      const ab = k => s.bcam && v('B ' + k) ? (v(k) || '–') + ' / ' + v('B ' + k) : v(k);
+      const chips = [['Lens', ab('Lens')], ['T', ab('T-stop')], ['ISO', ab('ISO')], ['Cam', ab('Camera roll')], ['Loc', v('Location')], ['Takes', takes || '']]
         .filter(([, x]) => x).map(([k, x]) => '<span><b>' + k + '</b>' + hl(String(x), q) + '</span>').join('');
       html += '<button type="button" class="item' + (i === cur ? ' current' : '') + '" data-i="' + i + '">' + thumb +
         '<span style="min-width:0"><span class="it-title">' + hl(title, q) + '</span>' +
@@ -991,7 +1034,7 @@ byId('backup').onclick = async () => {
     for (const s of keep) {
       const photos = {};
       for (const [k, f] of Object.entries(s.photos)) if (f) photos[k] = await toDataUrl(f);
-      out.push({id:s.id, projectId:s.projectId, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photos});
+      out.push({id:s.id, bcam:!!s.bcam, projectId:s.projectId, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photos});
     }
     const json = JSON.stringify({app:'vfx-shot-notes', format:2, exported:new Date().toISOString(), projects:lib.projects, shots:out});
     const r = await saveFile(new Blob([json], {type:'application/json'}), 'VFX_Shot_Notes_backup_' + stamp() + '_' + lib.projects.length + '-projects.json', 'application/json');
@@ -1011,7 +1054,7 @@ byId('restoreFile').addEventListener('change', async e => {
     const d = JSON.parse(await f.text());
     if (d.app !== 'vfx-shot-notes' || !Array.isArray(d.shots)) throw new Error('not a backup');
     const list = d.shots.map(s => ({id: s.id || newId(), projectId: s.projectId || null, created: s.created || Date.now(), updated: s.updated || s.created || Date.now(),
-      values: s.values || {}, carried: s.carried || {}, photoCarried: s.photoCarried || {},
+      values: s.values || {}, carried: s.carried || {}, photoCarried: s.photoCarried || {}, bcam: !!s.bcam,
       photos: Object.fromEntries(Object.entries(s.photos || {}).map(([k, v]) => [k, fromDataUrl(v)]))}));
     incoming = {projects: [], shots: []};
     if (Array.isArray(d.projects) && d.projects.length) { incoming.projects = d.projects.map(p => ({...p})); incoming.shots = list; }

@@ -473,6 +473,44 @@ function nameFor(s, suffix) {
 async function waitImages() {
   await Promise.all([...form.querySelectorAll('.photo img:not([hidden])')].map(img => img.decode ? img.decode().catch(() => {}) : null));
 }
+/* html2canvas drops line breaks in text areas, so the snapshot swaps each one for a block with the same look and text */
+function keepLineBreaks(doc) {
+  doc.querySelectorAll('textarea.box').forEach(ta => {
+    const live = byId(ta.id), d = doc.createElement('div');
+    d.className = ta.className;
+    d.textContent = live ? live.value : ta.value;
+    d.style.whiteSpace = 'pre-wrap'; d.style.overflowWrap = 'anywhere';
+    if (live) { const cs = getComputedStyle(live); d.style.fontFamily = cs.fontFamily; d.style.fontStyle = cs.fontStyle; d.style.lineHeight = cs.lineHeight; d.style.color = cs.color; }
+    d.style.minHeight = (live ? live.getBoundingClientRect().height : ta.offsetHeight) + 'px';
+    ta.replaceWith(d);
+  });
+}
+
+/* Invisible text layer: puts every label and value under the sheet image so the PDF is searchable and selectable */
+function textLayer(pdf, k, x0, y0) {
+  const sheet = byId('sheet'), base = sheet.getBoundingClientRect();
+  const visible = el => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+  const put = (txt, x, y, pt) => { pdf.setFontSize(pt); pdf.text(txt, x, y, {renderingMode: 'invisible', baseline: 'alphabetic'}); };
+  const pos = (rect) => ({x: x0 + (rect.left - base.left) * k, y: y0 + (rect.top - base.top) * k, w: rect.width * k, h: rect.height * k});
+  pdf.setFont('helvetica', 'normal');
+  sheet.querySelectorAll('h1, h2, h3, .sheetno, .legend, .cap, .photo .tag, .photo:not(.has) .ph').forEach(el => {
+    if (!visible(el)) return;
+    const t = el.innerText.replace(/\s+/g, ' ').trim(); if (!t) return;
+    const cs = getComputedStyle(el), px = parseFloat(cs.fontSize), p = pos(el.getBoundingClientRect());
+    put(t, p.x + (parseFloat(cs.paddingLeft) || 0) * k, p.y + p.h * .5 + px * .35 * k, px * k * 72);
+  });
+  sheet.querySelectorAll('.box').forEach(el => {
+    const v = el.value.trim(); if (!v || !visible(el)) return;
+    const cs = getComputedStyle(el), px = parseFloat(cs.fontSize), pt = px * k * 72, p = pos(el.getBoundingClientRect());
+    const padL = parseFloat(cs.paddingLeft) * k, padT = parseFloat(cs.paddingTop) * k;
+    if (el.tagName === 'TEXTAREA') {
+      pdf.setFontSize(pt);
+      const lh = (parseFloat(cs.lineHeight) || px * 1.4) * k;
+      pdf.splitTextToSize(v, Math.max(p.w - 2 * padL, .2)).forEach((line, n) => put(line, p.x + padL, p.y + padT + lh * (n + .78), pt));
+    } else put(v, p.x + padL, p.y + p.h * .5 + px * .35 * k, pt);
+  });
+}
+
 /* The diagram / extra photo gets its own page after its shot's sheet */
 async function imageData(blob) {
   const u = URL.createObjectURL(blob), im = new Image();
@@ -517,10 +555,11 @@ async function exportShots(indices, filename) {
     for (let k = 0; k < indices.length; k++) {
       status.textContent = 'Building the PDF… page ' + (k + 1) + ' of ' + indices.length;
       cur = indices[k]; render(); await waitImages();
-      const canvas = await html2canvas(byId('sheet'), {scale:2.5, backgroundColor:'#ffffff', windowWidth:900});
+      const canvas = await html2canvas(byId('sheet'), {scale:2.5, backgroundColor:'#ffffff', windowWidth:900, onclone: keepLineBreaks});
       const r = Math.min(W / canvas.width, H / canvas.height), w = canvas.width * r, h = canvas.height * r;
       if (pages++) pdf.addPage([8.5,14], 'portrait');
       pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', (8.5 - w) / 2, m, w, h);
+      try { textLayer(pdf, r * 2.5, (8.5 - w) / 2, m); } catch {} /* searchable text; the sheet image is unaffected if this fails */
       const s = shots[cur];
       if (s.photos[EXTRA]) { pdf.addPage([8.5,14], 'portrait'); pages++; await extraPage(pdf, s, cur, m, W, H); }
     }

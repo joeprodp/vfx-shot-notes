@@ -138,8 +138,6 @@ button:disabled{opacity:.45;cursor:default}
 .sheetnum{font:600 12px var(--sans);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);padding:24px 4px}
 mark{background:color-mix(in srgb,var(--accent) 25%,transparent);color:inherit;padding:0 1px}
-body.in-dir main,body.in-dir .actions,body.in-dir .nav,body.in-dir #status{display:none}
-body:not(.in-dir) #dir,body:not(.in-dir) #back{display:none}
 
 @media(max-width:640px){
   .item{grid-template-columns:72px minmax(0,1fr)}
@@ -163,15 +161,45 @@ body.exporting .photo:not(.has) .ph{display:grid}
 @page{size:8.5in 14in;margin:.3in}
 @media print{body{background:#fff;padding:0}.toolbar,#status,.rm{display:none}main{max-width:none;padding:0}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+/* Views: Projects → a project's sheets → that project's All shots */
+body:not(.view-dir) #dir, body:not(.view-projects) #projects, body:not(.view-sheet) main,
+body:not(.view-sheet) .actions, body:not(.view-sheet) .nav, body:not(.view-sheet) #status{display:none}
+body:not(.view-dir) #back{display:none}
+body.view-projects .toolbar{display:none}
+.projname{font-weight:600;color:var(--title);max-width:14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shotnav{display:flex;gap:6px;align-items:center}
+@media(max-width:640px){.projname{flex:1 1 0;max-width:none;min-width:0}}
+#projects{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
+.newproj{display:flex;gap:8px;margin-top:14px}
+.newproj input{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:10px 12px;border-radius:4px}
+.newproj input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent);background:var(--field-focus)}
+.plist{display:grid;gap:8px;margin-top:14px}
+.pcard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:4px;background:var(--sheet);min-height:0}
+.pcard:hover{background:var(--field)}
+.pcard.last{box-shadow:inset 3px 0 0 var(--accent)}
+.p-name{font-weight:600;font-size:17px;color:var(--title);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-meta{grid-column:1;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.p-count{grid-row:1/span 2;grid-column:2;font:600 13px var(--sans);color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.p-hits{grid-column:1;font-size:13px;color:var(--accent)}
+.section-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:26px 0 0;border-top:1px solid var(--line);padding-top:14px}
+.projtools{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin-top:12px}
+.rename{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.rename input{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:9px 12px;border-radius:4px}
+.dirsub{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="toolbar">
   <div class="nav">
-    <button id="prev" class="icon" type="button" aria-label="Previous shot">‹</button>
-    <span id="count" class="count" aria-live="polite">Shot 1 of 1</span>
-    <button id="next" class="icon" type="button" aria-label="Next shot">›</button>
-    <button id="dirBtn" type="button">All shots</button>
+    <button id="toProjects" type="button" aria-label="All projects">‹ Projects</button>
+    <span id="projName" class="projname"></span>
+    <span class="shotnav">
+      <button id="prev" class="icon" type="button" aria-label="Previous shot">‹</button>
+      <span id="count" class="count" aria-live="polite">Shot 1 of 1</span>
+      <button id="next" class="icon" type="button" aria-label="Next shot">›</button>
+      <button id="dirBtn" type="button">All shots</button>
+    </span>
   </div>
   <button id="back" type="button">‹ Back to shot</button>
   <div class="actions">
@@ -186,8 +214,18 @@ body.exporting .photo:not(.has) .ph{display:grid}
 </div>
 <span id="status" role="status">Tap anywhere in a box to type. Return moves to the next box. Next setup copies this shot onto a new page; blue italic marks anything you haven't changed yet.</span>
 
-<section id="dir" aria-label="All shots">
-  <div class="dirhead"><h1>All Shots</h1><span id="dirCount" class="sheetno"></span></div>
+<!-- Projects: the top level -->
+<section id="projects" aria-label="Projects">
+  <div class="dirhead"><h1>Projects</h1><span id="projCount" class="sheetno"></span></div>
+  <p id="projHint" class="libnote" style="margin-top:8px"></p>
+  <form id="newProj" class="newproj" autocomplete="off">
+    <input id="newProjName" placeholder="New project name, e.g. BIGFOOT" aria-label="New project name" enterkeyhint="done">
+    <button class="primary" type="submit">+ New project</button>
+  </form>
+  <input id="projSearch" class="search" type="search" placeholder="Search all projects: name, scene, lens, notes…" aria-label="Search all projects" autocomplete="off" enterkeyhint="search">
+  <div id="projList" class="plist"></div>
+
+  <div class="section-label">Backup</div>
   <div class="library">
     <button id="backup" type="button">Back up all shots</button>
     <button id="shareBackup" class="primary" type="button" hidden>Share backup</button>
@@ -201,7 +239,24 @@ body.exporting .photo:not(.has) .ph{display:grid}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <input id="search" class="search" type="search" placeholder="Search scene, shot, lens, location, notes…" aria-label="Search all shots" autocomplete="off" enterkeyhint="search">
+</section>
+
+<!-- One project's directory of shots -->
+<section id="dir" aria-label="All shots">
+  <div class="dirhead"><div style="flex:1 1 auto;min-width:0"><div class="dirsub">All shots</div><h1 id="dirTitle">Project</h1></div><span id="dirCount" class="sheetno"></span></div>
+  <div class="projtools">
+    <span class="restore">Import PDF<input type="file" id="importPdf" accept="application/pdf,.pdf" aria-label="Import shots from a VFX Shot Notes PDF"></span>
+    <button id="renameBtn" type="button">Rename project</button>
+    <button id="delProj" type="button">Delete project</button>
+    <span id="delProjAsk" hidden><button id="delProjYes" class="danger" type="button">Delete project and its shots</button> <button id="delProjNo" type="button">Keep</button></span>
+  </div>
+  <form id="renameForm" class="rename" hidden autocomplete="off">
+    <input id="renameInput" aria-label="Project name" enterkeyhint="done">
+    <button class="primary" type="submit">Save name</button>
+    <button id="renameCancel" type="button">Cancel</button>
+  </form>
+  <p id="dirStatus" class="libnote" role="status" style="margin-top:8px"></p>
+  <input id="search" class="search" type="search" placeholder="Search scene, shot, lens, location, notes…" aria-label="Search this project's shots" autocomplete="off" enterkeyhint="search">
   <div id="dirList"></div>
 </section>
 
@@ -312,13 +367,34 @@ kb.addEventListener('click', e => {
   setKbLabel(el);
 });
 
-/* ---------- Shot data ---------- */
+/* ---------- Library: projects, and shots that each belong to one project ---------- */
 const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const emptyShot = () => { const t = Date.now(); return {id:newId(), created:t, updated:t, values:{}, carried:{}, photos:{}, photoCarried:{}}; };
-let shots = [emptyShot()], cur = 0, lastBackup = null;
+let lastStamp = 0; /* strictly increasing creation times keep the order stable */
+const now = () => (lastStamp = Math.max(Date.now(), lastStamp + 1));
+const emptyShot = () => { const t = now(); return {id:newId(), projectId:null, created:t, updated:t, values:{}, carried:{}, photos:{}, photoCarried:{}}; };
+let lib = {projects: [], shots: []};
+let curProject = null, curByProject = {}, lastBackup = null;
+let shots = [emptyShot()], cur = 0;
 const shot = () => shots[cur];
+const project = () => lib.projects.find(p => p.id === curProject);
+const projShots = id => lib.shots.filter(s => s.projectId === id).sort((a, b) => (a.created || 0) - (b.created || 0));
+function refreshShots() { shots = projShots(curProject); if (!shots.length) { const s = emptyShot(); s.projectId = curProject; if (project()) s.values.Project = project().name; lib.shots.push(s); shots = [s]; } cur = Math.max(0, Math.min(cur, shots.length - 1)); }
+function addShot(s) { s.projectId = curProject; lib.shots.push(s); shots = projShots(curProject); return shots.indexOf(s); }
+function newProject(name) { const t = now(); const p = {id:newId(), name:name.trim() || 'Untitled project', created:t, updated:t}; lib.projects.push(p); return p; }
+const touchProject = () => { const p = project(); if (p) p.updated = Date.now(); };
+/* Group loose shots into projects by their Project box (used when upgrading and for older backups) */
+function groupIntoProjects(list, into) {
+  const byName = new Map(into.projects.map(p => [p.name.trim().toLowerCase(), p]));
+  for (const s of list) {
+    const name = (s.values?.Project || '').trim() || 'Untitled project', key = name.toLowerCase();
+    let p = byName.get(key);
+    if (!p) { p = {id:newId(), name, created:s.created || now(), updated:s.updated || s.created || now()}; into.projects.push(p); byName.set(key, p); }
+    p.created = Math.min(p.created, s.created || p.created); p.updated = Math.max(p.updated, s.updated || 0);
+    s.projectId = p.id; into.shots.push(s);
+  }
+}
 
-/* ---------- Storage: a per-browser convenience ---------- */
+/* ---------- Storage: on this device only ---------- */
 const db = new Promise((resolve,reject) => {
   try {
     const req = indexedDB.open('vfx-shot-notes-v3',1);
@@ -328,15 +404,15 @@ const db = new Promise((resolve,reject) => {
   } catch (e) { reject(e); }
 });
 db.catch(() => {});
-let storageOk = true;
-function warn() { storageOk = false; status.textContent = 'This browser is not keeping your shots. Save a PDF before closing the page.'; }
+function warn() { status.textContent = 'This browser is not keeping your shots. Save a PDF before closing the page.'; }
 let saveTimer;
 function save() {
+  if (curProject) curByProject[curProject] = cur;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
       const tx = (await db).transaction('state','readwrite');
-      tx.objectStore('state').put({shots, cur, lastBackup}, 'doc');
+      tx.objectStore('state').put({lib, curProject, curByProject, lastBackup}, 'lib');
       tx.onerror = warn; tx.onabort = warn;
     } catch { warn(); }
   }, 250);
@@ -344,34 +420,25 @@ function save() {
 async function load() {
   try {
     const d = await db;
-    const got = await new Promise((res, rej) => { const r = d.transaction('state').objectStore('state').get('doc'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
-    if (got?.shots?.length) {
-      shots = got.shots; cur = Math.min(got.cur || 0, shots.length - 1); lastBackup = got.lastBackup || null;
-      const t = Date.now(); /* give older shots the ids that backup / restore uses to match them */
-      shots.forEach((s, i) => { s.id = s.id || newId(); s.created = s.created || t - (shots.length - i) * 1000; s.updated = s.updated || s.created; });
-      return;
+    const get = key => new Promise((res, rej) => { const r = d.transaction('state').objectStore('state').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const got = await get('lib');
+    if (got?.lib) {
+      lib = got.lib; curProject = got.curProject; curByProject = got.curByProject || {}; lastBackup = got.lastBackup || null;
+    } else {
+      /* Upgrade from the single-list version: sort existing shots into projects by their Project box */
+      const old = await get('doc');
+      if (old?.shots?.length) {
+        const t = Date.now();
+        old.shots.forEach((s, i) => { s.id = s.id || newId(); s.created = s.created || t - (old.shots.length - i) * 1000; s.updated = s.updated || s.created; });
+        groupIntoProjects(old.shots.filter(hasContent), lib);
+        lastBackup = old.lastBackup || null;
+        if (lib.projects.length) save();
+      }
     }
-    /* Bring over a draft from the previous version of this page, if any */
-    const old = await new Promise(res => {
-      try {
-        const q = indexedDB.open('vfx-shot-notes-v2');
-        q.onupgradeneeded = () => { q.transaction.abort(); res(null); };
-        q.onerror = () => res(null);
-        q.onsuccess = () => {
-          const odb = q.result;
-          if (!odb.objectStoreNames.contains('fields')) return res(null);
-          const out = {}; const c = odb.transaction('fields').objectStore('fields').openCursor();
-          c.onsuccess = () => { const e = c.result; if (!e) return res(out); out[e.key] = e.value; e.continue(); };
-          c.onerror = () => res(null);
-        };
-      } catch { res(null); }
-    });
-    if (old && Object.keys(old).length) {
-      const s = emptyShot();
-      for (const [k, v] of Object.entries(old)) (PHOTO_NAMES.includes(k) ? s.photos : s.values)[k] = v;
-      shots = [s]; cur = 0; save();
-    }
+    lastStamp = Math.max(0, ...lib.shots.map(s => s.created || 0), ...lib.projects.map(p => p.created || 0));
   } catch { warn(); }
+  if (!lib.projects.find(p => p.id === curProject)) curProject = null;
+  showProjects();
 }
 
 /* ---------- Render the current shot ---------- */
@@ -385,7 +452,7 @@ function setPhoto(name, file, carried) {
   if (file) { const u = URL.createObjectURL(file); urls.set(name, u); img.src = u; } else img.removeAttribute('src');
 }
 function render() {
-  const s = shot();
+  const s = shot(); if (!s) return;
   boxes.forEach(el => {
     el.value = s.values[el.name] ?? '';
     el.classList.toggle('carried', !!(s.carried[el.name] && el.value));
@@ -393,6 +460,7 @@ function render() {
   [...PHOTO_NAMES, EXTRA].forEach(n => setPhoto(n, s.photos[n], s.photoCarried[n]));
   byId('count').textContent = 'Shot ' + (cur + 1) + ' of ' + shots.length;
   byId('sheetno').textContent = 'Sheet ' + (cur + 1) + ' of ' + shots.length;
+  byId('projName').textContent = project()?.name || '';
   byId('prev').disabled = cur === 0;
   byId('next').disabled = cur === shots.length - 1;
   updateLegend();
@@ -408,7 +476,7 @@ form.addEventListener('submit', e => e.preventDefault());
 form.addEventListener('input', ({target}) => {
   if (!target.classList.contains('box')) return;
   const s = shot();
-  s.values[target.name] = target.value; s.updated = Date.now();
+  s.values[target.name] = target.value; s.updated = Date.now(); touchProject();
   if (s.carried[target.name]) { delete s.carried[target.name]; target.classList.remove('carried'); updateLegend(); }
   save();
 });
@@ -430,7 +498,7 @@ form.addEventListener('change', async ({target}) => {
   const s = shot(), name = target.name, raw = target.files[0];
   target.value = '';
   const file = await shrink(raw);
-  s.photos[name] = file; delete s.photoCarried[name]; s.updated = Date.now();
+  s.photos[name] = file; delete s.photoCarried[name]; s.updated = Date.now(); touchProject();
   if (s === shot()) { setPhoto(name, file, false); updateLegend(); }
   save();
 });
@@ -438,7 +506,7 @@ form.addEventListener('click', e => {
   const rm = e.target.closest('.rm'); if (!rm) return;
   e.preventDefault();
   const name = rm.closest('.photo').dataset.name, s = shot();
-  delete s.photos[name]; delete s.photoCarried[name]; s.updated = Date.now();
+  delete s.photos[name]; delete s.photoCarried[name]; s.updated = Date.now(); touchProject();
   setPhoto(name, null); updateLegend(); save();
 });
 /* Return moves to the next box (Shift+Return keeps a new line in text areas; the notes box always takes new lines) */
@@ -452,6 +520,16 @@ form.addEventListener('keydown', e => {
   if (n) n.focus(); else t.blur();
 });
 
+/* ---------- Views ---------- */
+function setView(v) { document.body.classList.remove('view-projects', 'view-sheet', 'view-dir'); document.body.classList.add('view-' + v); window.scrollTo({top:0}); }
+function openProject(id, index) {
+  curProject = id; cur = 0; refreshShots();
+  cur = index ?? Math.min(curByProject[id] ?? shots.length - 1, shots.length - 1);
+  render(); save(); setView('sheet');
+  status.textContent = 'Project: ' + (project()?.name || '') + '. Tap anywhere in a box to type; Next setup copies this shot onto a new page.';
+}
+byId('toProjects').onclick = () => showProjects();
+
 /* ---------- Shot pages ---------- */
 function go(i) { cur = Math.max(0, Math.min(i, shots.length - 1)); render(); save(); window.scrollTo({top:0}); }
 byId('prev').onclick = () => go(cur - 1);
@@ -464,27 +542,31 @@ byId('carry').onclick = () => {
   }
   for (const [k, f] of Object.entries(s.photos)) { if (f) { n.photos[k] = f; n.photoCarried[k] = true; } }
   const from = cur + 1;
-  shots.push(n); /* new shots always go at the end of the day */
+  addShot(n); touchProject(); /* new shots always go at the end of the day */
   go(shots.length - 1);
   status.textContent = 'New setup copied from shot ' + from + '. Blue italic boxes are unchanged; anything you edit turns normal. The take log starts empty.';
   byId('f-shot').focus();
 };
 byId('blank').onclick = () => {
-  shots.push(emptyShot());
+  const n = emptyShot(); if (project()) n.values.Project = project().name;
+  addShot(n); touchProject();
   go(shots.length - 1);
   status.textContent = 'Blank shot added.';
-  byId('f-project').focus();
+  byId('f-scene').focus();
 };
 const delBtn = byId('del'), confirmBox = byId('confirm');
 function hideConfirm() { confirmBox.hidden = true; delBtn.hidden = false; }
 delBtn.onclick = () => {
   delBtn.hidden = true; confirmBox.hidden = false;
-  status.textContent = shots.length > 1 ? 'Delete shot ' + (cur + 1) + '? This removes its notes and photos from this browser.' : 'Clear this shot? This removes its notes and photos from this browser.';
+  status.textContent = shots.length > 1 ? 'Delete shot ' + (cur + 1) + '? This removes its notes and photos from this device.' : 'Clear this shot? This removes its notes and photos from this device.';
 };
 byId('confirmNo').onclick = () => { hideConfirm(); status.textContent = 'Kept this shot.'; };
 byId('confirmYes').onclick = () => {
-  if (shots.length > 1) { shots.splice(cur, 1); status.textContent = 'Shot deleted.'; go(Math.min(cur, shots.length - 1)); }
-  else { shots = [emptyShot()]; status.textContent = 'Cleared. Ready for the next shot.'; go(0); }
+  const s = shot();
+  lib.shots = lib.shots.filter(x => x !== s); touchProject();
+  refreshShots();
+  status.textContent = shots.length && hasContent(shots[0]) ? 'Shot deleted.' : 'Cleared. Ready for the next shot.';
+  go(Math.min(cur, shots.length - 1));
 };
 
 /* ---------- PDF export: one US Legal portrait page per shot ---------- */
@@ -516,7 +598,7 @@ byId('shareBackup').onclick = () => shareAgain(byId('shareBackup'));
 const saveFile = (blob, filename, mime) => deliver(blob, filename, mime);
 function nameFor(s, suffix) {
   const v = k => (s.values[k] || '').trim();
-  const parts = [v('Project'), v('Scene') && 'Sc' + v('Scene'), v('Shot') && 'Sh' + v('Shot'), v('Date')].filter(Boolean);
+  const parts = [v('Project') || project()?.name || '', v('Scene') && 'Sc' + v('Scene'), v('Shot') && 'Sh' + v('Shot'), v('Date')].filter(Boolean);
   return ((parts.length ? parts.join('_') : 'VFX_Shot_Notes') + (suffix || '')).replace(/[\\/:*?"<>|]+/g,'-') + '.pdf';
 }
 async function waitImages() {
@@ -572,7 +654,7 @@ async function imageData(blob) {
     return {data: c.toDataURL('image/jpeg', .9), w: c.width, h: c.height};
   } finally { URL.revokeObjectURL(u); }
 }
-async function extraPage(pdf, s, i, m, W, H) {
+async function extraPage(pdf, s, i, m, W, H, alias) {
   const v = k => (s.values[k] || '').trim();
   pdf.setFont('helvetica', 'normal'); pdf.setFontSize(20); pdf.setTextColor(43, 69, 102);
   pdf.text('VFX On-Set Shot Notes', m + .05, m + .3);
@@ -589,7 +671,23 @@ async function extraPage(pdf, s, i, m, W, H) {
   }
   const img = await imageData(s.photos[EXTRA]);
   const bh = 14 - m - top, r = Math.min(W / img.w, bh / img.h), w = img.w * r, h = img.h * r;
-  pdf.addImage(img.data, 'JPEG', (8.5 - w) / 2, top, w, h);
+  pdf.addImage(img.data, 'JPEG', (8.5 - w) / 2, top, w, h, alias);
+}
+/* Every exported PDF carries its shots' data as a small attachment, so another copy of the app can import it */
+function attachData(pdf, payload) {
+  const bytes = unescape(encodeURIComponent(payload)); /* UTF-8 as a byte string */
+  let fileObj = 0;
+  pdf.internal.events.subscribe('postPutResources', () => {
+    const streamId = pdf.internal.newObject();
+    pdf.internal.write('<< /Type /EmbeddedFile /Subtype /application#2Fjson /Length ' + bytes.length + ' >>');
+    pdf.internal.write('stream'); pdf.internal.write(bytes); pdf.internal.write('endstream'); pdf.internal.write('endobj');
+    fileObj = pdf.internal.newObject();
+    pdf.internal.write('<< /Type /Filespec /F (vfx-shot-notes.json) /UF (vfx-shot-notes.json) /Desc (VFX Shot Notes data) /EF << /F ' + streamId + ' 0 R >> >>');
+    pdf.internal.write('endobj');
+  });
+  pdf.internal.events.subscribe('putCatalog', () => {
+    pdf.internal.write('/Names << /EmbeddedFiles << /Names [(vfx-shot-notes.json) ' + fileObj + ' 0 R] >> >>');
+  });
 }
 async function exportShots(indices, filename) {
   const btns = [byId('pdf'), byId('pdfAll')]; btns.forEach(b => b.disabled = true);
@@ -601,17 +699,27 @@ async function exportShots(indices, filename) {
     const pdf = new jsPDF({orientation:'portrait', unit:'in', format:[8.5,14]});
     const m = .25, W = 8.5 - 2*m, H = 14 - 2*m;
     let pages = 0;
+    const data = {app:'vfx-shot-notes', kind:'pdf', format:2, exported:new Date().toISOString(), project:project()?.name || '', images:[], shots:[]};
     for (let k = 0; k < indices.length; k++) {
       status.textContent = 'Building the PDF… page ' + (k + 1) + ' of ' + indices.length;
       cur = indices[k]; render(); await waitImages();
-      const canvas = await html2canvas(byId('sheet'), {scale:2.5, backgroundColor:'#ffffff', windowWidth:900, onclone: keepLineBreaks});
+      const sheetEl = byId('sheet'), base = sheetEl.getBoundingClientRect();
+      const canvas = await html2canvas(sheetEl, {scale:2.5, backgroundColor:'#ffffff', windowWidth:900, onclone: keepLineBreaks});
       const r = Math.min(W / canvas.width, H / canvas.height), w = canvas.width * r, h = canvas.height * r;
       if (pages++) pdf.addPage([8.5,14], 'portrait');
-      pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', (8.5 - w) / 2, m, w, h);
+      pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', (8.5 - w) / 2, m, w, h, 'sheet' + k);
       try { textLayer(pdf, r * 2.5, (8.5 - w) / 2, m); } catch {} /* searchable text; the sheet image is unaffected if this fails */
-      const s = shots[cur];
-      if (s.photos[EXTRA]) { pdf.addPage([8.5,14], 'portrait'); pages++; await extraPage(pdf, s, cur, m, W, H); }
+      const s = shots[cur], px = canvas.width / base.width, photoRects = {};
+      for (const n of PHOTO_NAMES) {
+        if (!s.photos[n]) continue;
+        const b = form.querySelector('.photo[data-name="' + n + '"]').getBoundingClientRect();
+        photoRects[n] = [(b.left - base.left) * px, (b.top - base.top) * px, b.width * px, b.height * px].map(Math.round);
+      }
+      data.images.push({type:'sheet', shot:k});
+      data.shots.push({id:s.id, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photoRects});
+      if (s.photos[EXTRA]) { pdf.addPage([8.5,14], 'portrait'); pages++; await extraPage(pdf, s, cur, m, W, H, 'extra' + k); data.images.push({type:'extra', shot:k}); }
     }
+    attachData(pdf, JSON.stringify(data));
     document.body.classList.remove('exporting');
     cur = keep; render();
     const r = await deliver(pdf.output('blob'), filename);
@@ -626,9 +734,105 @@ async function exportShots(indices, filename) {
 byId('pdf').onclick = () => exportShots([cur], nameFor(shot()));
 byId('pdfAll').onclick = () => exportShots(shots.map((_, i) => i), nameFor(shots[0], '_all-' + shots.length + '-shots'));
 
-/* ---------- Directory ---------- */
-const dirUrls = [];
+/* ---------- Import shots from a PDF made by this app ---------- */
+function readPdf(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = ''; for (let i = 0; i < bytes.length; i += 32768) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+  const streamAt = (from) => { const m = /stream\r?\n/.exec(s.slice(from, from + 64)); return m ? from + m.index + m[0].length : -1; };
+  /* the data attachment */
+  const f = s.indexOf('/Type /EmbeddedFile'); if (f < 0) return null;
+  const dict = s.slice(f, s.indexOf('>>', f));
+  const len = +((/\/Length (\d+)/.exec(dict) || [])[1] || 0), st = streamAt(s.indexOf('>>', f) + 2);
+  if (!len || st < 0) return null;
+  const json = decodeURIComponent(escape(s.slice(st, st + len)));
+  /* the page images, in the order they were added */
+  const images = []; const re = /\/Subtype \/Image/g; let m;
+  while ((m = re.exec(s))) {
+    const end = s.indexOf('>>', m.index); const d = s.slice(Math.max(0, s.lastIndexOf('<<', m.index)), end);
+    if (!/DCTDecode/.test(d)) continue;
+    const L = +((/\/Length (\d+)/.exec(d) || [])[1] || 0), at = streamAt(end + 2);
+    if (L && at > 0) images.push(new Blob([bytes.slice(at, at + L)], {type:'image/jpeg'}));
+  }
+  return {data: JSON.parse(json), images};
+}
+async function cropTo(blob, rect) {
+  const u = URL.createObjectURL(blob), im = new Image();
+  try {
+    im.src = u; await im.decode();
+    const [x, y, w, h] = rect, c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(im, x, y, w, h, 0, 0, w, h);
+    return await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
+  } finally { URL.revokeObjectURL(u); }
+}
+byId('importPdf').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const ds = byId('dirStatus'); ds.textContent = 'Reading the PDF…';
+  try {
+    const got = readPdf(await f.arrayBuffer());
+    if (!got || got.data?.app !== 'vfx-shot-notes' || !Array.isArray(got.data.shots)) { ds.textContent = 'This PDF doesn’t carry VFX Shot Notes data. Only PDFs saved from this app (after Nov 12, 2026) can be imported.'; return; }
+    lib.shots = lib.shots.filter(s => s.projectId !== curProject || hasContent(s)); /* drop the empty starter sheet */
+    const known = new Set(lib.shots.map(s => s.id)); let added = 0, skipped = 0;
+    const sheetImg = {}, extraImg = {};
+    got.data.images.forEach((im, i) => { (im.type === 'extra' ? extraImg : sheetImg)[im.shot] = got.images[i]; });
+    for (let k = 0; k < got.data.shots.length; k++) {
+      const src = got.data.shots[k];
+      if (src.id && known.has(src.id)) { skipped++; continue; }
+      const s = {id: src.id || newId(), projectId: curProject, created: now(), updated: Date.now(), values: src.values || {}, carried: src.carried || {}, photoCarried: src.photoCarried || {}, photos: {}};
+      for (const [n, rect] of Object.entries(src.photoRects || {})) if (sheetImg[k]) { try { s.photos[n] = await cropTo(sheetImg[k], rect); } catch {} }
+      if (extraImg[k]) s.photos[EXTRA] = extraImg[k];
+      lib.shots.push(s); added++;
+    }
+    touchProject(); refreshShots(); save(); renderDir();
+    ds.textContent = 'Imported ' + added + (added === 1 ? ' shot' : ' shots') + ' from “' + f.name + '”' + (skipped ? ' (' + skipped + ' already here, skipped)' : '') + '. They’re at the end of this project.';
+  } catch { ds.textContent = 'Could not read that PDF.'; }
+});
+
+/* ---------- Projects screen ---------- */
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const when = t => new Date(t).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+const day = t => new Date(t).toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'});
+/* A sheet counts as a shot once anything besides the auto-filled Project box is filled in */
+const hasContent = s => Object.entries(s.values || {}).some(([k, v]) => k !== 'Project' && String(v).trim()) || Object.values(s.photos || {}).some(Boolean);
+function renderProjects() {
+  const q = byId('projSearch').value.trim().toLowerCase();
+  const list = [...lib.projects].sort((a, b) => (b.created || 0) - (a.created || 0)); /* newest project first */
+  let html = '', shown = 0;
+  for (const p of list) {
+    const ps = projShots(p.id).filter(hasContent);
+    const hits = q ? ps.filter(s => Object.values(s.values).join(' ').toLowerCase().includes(q)).length : 0;
+    if (q && !p.name.toLowerCase().includes(q) && !hits) continue;
+    shown++;
+    html += '<button type="button" class="pcard' + (p.id === curProject ? ' last' : '') + '" data-id="' + p.id + '">' +
+      '<span class="p-name">' + esc(p.name) + '</span>' +
+      '<span class="p-count">' + ps.length + (ps.length === 1 ? ' shot' : ' shots') + '</span>' +
+      '<span class="p-meta">Created ' + day(p.created) + (p.updated && p.updated - p.created > 60000 ? ' · last edit ' + when(p.updated) : '') + '</span>' +
+      (hits ? '<span class="p-hits">' + hits + (hits === 1 ? ' shot matches' : ' shots match') + ' “' + esc(q) + '” · tap to see</span>' : '') + '</button>';
+  }
+  byId('projList').innerHTML = shown ? html : '<p class="empty">' + (q ? 'Nothing matches “' + esc(q) + '”.' : 'No projects yet. Name your first project above and tap New project.') + '</p>';
+  byId('projCount').textContent = lib.projects.length + (lib.projects.length === 1 ? ' project' : ' projects');
+}
+function showProjects() {
+  if (curProject) curByProject[curProject] = cur;
+  setView('projects'); renderProjects(); showLastBackup();
+  byId('libStatus').textContent = ''; byId('restoreAsk').hidden = true; incoming = null;
+}
+byId('projSearch').addEventListener('input', renderProjects);
+byId('projList').addEventListener('click', e => {
+  const c = e.target.closest('.pcard'); if (!c) return;
+  const q = byId('projSearch').value.trim();
+  if (q) { openProject(c.dataset.id); openDir(q); } else openProject(c.dataset.id);
+});
+byId('newProj').addEventListener('submit', e => {
+  e.preventDefault();
+  const input = byId('newProjName'), name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  const p = newProject(name); input.value = '';
+  save(); openProject(p.id);
+  status.textContent = 'New project “' + p.name + '”. The Project box fills in automatically on every new shot.';
+});
+
+/* ---------- Directory of one project's shots ---------- */
+const dirUrls = [];
 function hl(text, q) {
   const t = esc(text); if (!q) return t;
   const i = text.toLowerCase().indexOf(q); if (i < 0) return t;
@@ -636,19 +840,20 @@ function hl(text, q) {
 }
 function renderDir() {
   dirUrls.splice(0).forEach(u => URL.revokeObjectURL(u));
+  byId('dirTitle').textContent = project()?.name || 'Project';
   const q = byId('search').value.trim().toLowerCase();
   const groups = new Map(); let shown = 0;
   shots.forEach((s, i) => {
     const v = k => (s.values[k] || '').trim();
     const hay = Object.values(s.values).join(' ').toLowerCase() + ' sheet ' + (i + 1);
     if (q && !hay.includes(q)) return;
-    const day = v('Shoot day') ? 'Shoot day ' + v('Shoot day') + (v('Date') ? ' · ' + v('Date') : '') : (v('Date') || 'No shoot day');
-    if (!groups.has(day)) groups.set(day, []);
-    groups.get(day).push([s, i]); shown++;
+    const d = v('Shoot day') ? 'Shoot day ' + v('Shoot day') + (v('Date') ? ' · ' + v('Date') : '') : (v('Date') || 'No shoot day');
+    if (!groups.has(d)) groups.set(d, []);
+    groups.get(d).push([s, i]); shown++;
   });
   let html = '';
-  for (const [day, items] of groups) {
-    html += '<div class="dayhead">' + esc(day) + '</div><div class="list">';
+  for (const [d, items] of groups) {
+    html += '<div class="dayhead">' + esc(d) + '</div><div class="list">';
     for (const [s, i] of items) {
       const v = k => (s.values[k] || '').trim();
       const title = [v('Scene') && 'Sc ' + v('Scene'), v('Shot') && 'Shot ' + v('Shot')].filter(Boolean).join(' · ') || 'Untitled shot';
@@ -669,18 +874,20 @@ function renderDir() {
   byId('dirList').innerHTML = shown ? html : '<p class="empty">' + (q ? 'No shots match “' + esc(q) + '”.' : 'No shots yet.') + '</p>';
   byId('dirCount').textContent = (q ? shown + ' of ' : '') + shots.length + (shots.length === 1 ? ' shot' : ' shots');
 }
-function openDir() {
-  document.body.classList.add('in-dir');
+function openDir(query) {
+  setView('dir');
   byId('back').textContent = '‹ Back to shot ' + (cur + 1);
-  renderDir(); window.scrollTo({top:0});
+  byId('search').value = typeof query === 'string' ? query : '';
+  byId('dirStatus').textContent = ''; byId('renameForm').hidden = true; hideDelProj();
+  renderDir();
   if (matchMedia('(pointer: fine)').matches) byId('search').focus({preventScroll:true});
 }
 function closeDir(i) {
-  document.body.classList.remove('in-dir');
   dirUrls.splice(0).forEach(u => URL.revokeObjectURL(u));
-  if (i !== undefined) { go(i); status.textContent = 'Opened shot ' + (i + 1) + '.'; } else window.scrollTo({top:0});
+  setView('sheet');
+  if (i !== undefined) { go(i); status.textContent = 'Opened shot ' + (i + 1) + '.'; } else render();
 }
-byId('dirBtn').onclick = openDir;
+byId('dirBtn').onclick = () => openDir();
 byId('back').onclick = () => closeDir();
 byId('search').addEventListener('input', renderDir);
 byId('search').addEventListener('keydown', e => {
@@ -688,8 +895,28 @@ byId('search').addEventListener('keydown', e => {
   if (e.key === 'Escape') closeDir();
 });
 byId('dirList').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) closeDir(+it.dataset.i); });
+/* Rename and delete the project */
+byId('renameBtn').onclick = () => { const f = byId('renameForm'); f.hidden = false; byId('renameInput').value = project()?.name || ''; byId('renameInput').focus(); };
+byId('renameCancel').onclick = () => { byId('renameForm').hidden = true; };
+byId('renameForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const p = project(), name = byId('renameInput').value.trim(); if (!p || !name) return;
+  const old = p.name; p.name = name; p.updated = Date.now();
+  for (const s of projShots(p.id)) if ((s.values.Project || '').trim() === old) s.values.Project = name; /* keep the Project box in step */
+  byId('renameForm').hidden = true; save(); renderDir(); render();
+  byId('dirStatus').textContent = 'Renamed to “' + name + '”.';
+});
+function hideDelProj() { byId('delProjAsk').hidden = true; byId('delProj').hidden = false; }
+byId('delProj').onclick = () => { byId('delProj').hidden = true; byId('delProjAsk').hidden = false; byId('dirStatus').textContent = 'Delete “' + (project()?.name || '') + '” and all ' + shots.filter(hasContent).length + ' of its shots from this device? Back up first if you might need them.'; };
+byId('delProjNo').onclick = () => { hideDelProj(); byId('dirStatus').textContent = 'Kept the project.'; };
+byId('delProjYes').onclick = () => {
+  const p = project(); if (!p) return;
+  lib.shots = lib.shots.filter(s => s.projectId !== p.id); lib.projects = lib.projects.filter(x => x.id !== p.id);
+  delete curByProject[p.id]; curProject = null; save(); showProjects();
+  byId('libStatus').textContent = 'Deleted “' + p.name + '”.';
+};
 
-/* ---------- Backup and restore: the whole library, photos included, as one file ---------- */
+/* ---------- Backup and restore: every project and shot, photos included, as one file ---------- */
 const toDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 function fromDataUrl(url) {
   const [head, data] = String(url).split(',');
@@ -699,26 +926,24 @@ function fromDataUrl(url) {
   return new Blob([a], {type: mime});
 }
 const stamp = (d = new Date()) => { const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes()); };
-const when = t => new Date(t).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
 function showLastBackup() { byId('lastBackup').textContent = lastBackup ? 'Last backup: ' + when(lastBackup) : 'No backup yet'; }
-const hasContent = s => Object.values(s.values).some(v => String(v).trim()) || Object.values(s.photos).some(Boolean);
 byId('backup').onclick = async () => {
   const btn = byId('backup'), ls = byId('libStatus');
   btn.disabled = true; ls.textContent = 'Preparing backup…';
   try {
-    const out = [];
-    for (const s of shots) {
+    const keep = lib.shots.filter(hasContent), out = [];
+    for (const s of keep) {
       const photos = {};
       for (const [k, f] of Object.entries(s.photos)) if (f) photos[k] = await toDataUrl(f);
-      out.push({id:s.id, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photos});
+      out.push({id:s.id, projectId:s.projectId, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photos});
     }
-    const json = JSON.stringify({app:'vfx-shot-notes', format:1, exported:new Date().toISOString(), shots:out});
-    const r = await saveFile(new Blob([json], {type:'application/json'}), 'VFX_Shot_Notes_backup_' + stamp() + '_' + shots.length + '-shots.json', 'application/json');
+    const json = JSON.stringify({app:'vfx-shot-notes', format:2, exported:new Date().toISOString(), projects:lib.projects, shots:out});
+    const r = await saveFile(new Blob([json], {type:'application/json'}), 'VFX_Shot_Notes_backup_' + stamp() + '_' + lib.projects.length + '-projects.json', 'application/json');
     if (r === 'saved' || r === 'shared' || r === 'downloaded') { lastBackup = Date.now(); save(); showLastBackup(); }
     const mb = (json.length / 1048576).toFixed(1);
     ls.textContent = r === 'cancelled' ? 'Backup not saved.' :
       r === 'ready' ? 'Backup ready. Tap Share backup and choose Save to Files → iCloud Drive.' :
-      'Backup saved: ' + shots.length + (shots.length === 1 ? ' shot, ' : ' shots, ') + mb + ' MB.';
+      'Backup saved: ' + lib.projects.length + (lib.projects.length === 1 ? ' project, ' : ' projects, ') + out.length + (out.length === 1 ? ' shot, ' : ' shots, ') + mb + ' MB.';
   } catch (e) { ls.textContent = e && e.code === 'declined' ? 'Backup not saved.' : 'Could not make the backup. Try again.'; }
   finally { btn.disabled = false; }
 };
@@ -729,41 +954,51 @@ byId('restoreFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text());
     if (d.app !== 'vfx-shot-notes' || !Array.isArray(d.shots)) throw new Error('not a backup');
-    incoming = d.shots.map(s => ({id: s.id || newId(), created: s.created || Date.now(), updated: s.updated || s.created || Date.now(),
+    const list = d.shots.map(s => ({id: s.id || newId(), projectId: s.projectId || null, created: s.created || Date.now(), updated: s.updated || s.created || Date.now(),
       values: s.values || {}, carried: s.carried || {}, photoCarried: s.photoCarried || {},
       photos: Object.fromEntries(Object.entries(s.photos || {}).map(([k, v]) => [k, fromDataUrl(v)]))}));
-    const known = new Set(shots.map(s => s.id)), fresh = incoming.filter(s => !known.has(s.id)).length;
-    byId('restoreMsg').textContent = 'Backup from ' + when(d.exported) + ': ' + incoming.length + (incoming.length === 1 ? ' shot' : ' shots') +
-      ', ' + fresh + ' not on this device yet. Add them to your shots, or replace everything on this device?';
+    incoming = {projects: [], shots: []};
+    if (Array.isArray(d.projects) && d.projects.length) { incoming.projects = d.projects.map(p => ({...p})); incoming.shots = list; }
+    else groupIntoProjects(list, incoming); /* older backups had no projects */
+    const known = new Set(lib.shots.map(s => s.id)), fresh = incoming.shots.filter(s => !known.has(s.id)).length;
+    byId('restoreMsg').textContent = 'Backup from ' + when(d.exported) + ': ' + incoming.projects.length + (incoming.projects.length === 1 ? ' project, ' : ' projects, ') +
+      incoming.shots.length + (incoming.shots.length === 1 ? ' shot' : ' shots') + ', ' + fresh + ' not on this device yet. Add them to your shots, or replace everything on this device?';
     byId('restoreAsk').hidden = false; ls.textContent = '';
   } catch { incoming = null; byId('restoreAsk').hidden = true; ls.textContent = 'That file isn’t a VFX Shot Notes backup.'; }
 });
 function finishRestore(msg) {
-  shots.sort((a, b) => (a.created || 0) - (b.created || 0));
   incoming = null; byId('restoreAsk').hidden = true;
-  cur = shots.length - 1; save(); render(); renderDir();
+  if (!lib.projects.find(p => p.id === curProject)) curProject = null;
+  lastStamp = Math.max(lastStamp, ...lib.shots.map(s => s.created || 0));
+  save(); renderProjects();
   byId('libStatus').textContent = msg;
 }
 byId('restoreCancel').onclick = () => { incoming = null; byId('restoreAsk').hidden = true; byId('libStatus').textContent = 'Restore cancelled. Nothing changed.'; };
 byId('restoreMerge').onclick = () => {
   if (!incoming) return;
-  const mine = new Map(shots.map(s => [s.id, s])); let added = 0, newer = 0;
-  for (const s of incoming) {
+  /* projects match by id, then by name; shots match by id and the newer edit wins */
+  const pMap = {}, byName = new Map(lib.projects.map(p => [p.name.trim().toLowerCase(), p]));
+  for (const p of incoming.projects) {
+    const mine = lib.projects.find(x => x.id === p.id) || byName.get(p.name.trim().toLowerCase());
+    if (mine) { pMap[p.id] = mine.id; mine.created = Math.min(mine.created, p.created || mine.created); mine.updated = Math.max(mine.updated || 0, p.updated || 0); }
+    else { lib.projects.push(p); byName.set(p.name.trim().toLowerCase(), p); pMap[p.id] = p.id; }
+  }
+  const mine = new Map(lib.shots.map(s => [s.id, s])); let added = 0, newer = 0;
+  for (const s of incoming.shots) {
+    s.projectId = pMap[s.projectId] || s.projectId;
     const m = mine.get(s.id);
-    if (!m) { shots.push(s); added++; }
+    if (!m) { lib.shots.push(s); added++; }
     else if ((s.updated || 0) > (m.updated || 0)) { Object.assign(m, s); newer++; }
   }
-  shots = shots.filter(hasContent); if (!shots.length) shots = [emptyShot()];
-  finishRestore('Added ' + added + (added === 1 ? ' shot' : ' shots') + (newer ? ' and updated ' + newer + ' with newer edits' : '') + '. Now ' + shots.length + ' in total.');
+  lib.shots = lib.shots.filter(hasContent);
+  finishRestore('Added ' + added + (added === 1 ? ' shot' : ' shots') + (newer ? ' and updated ' + newer + ' with newer edits' : '') + '. Now ' + lib.projects.length + (lib.projects.length === 1 ? ' project.' : ' projects.'));
 };
 byId('restoreReplace').onclick = () => {
   if (!incoming) return;
-  shots = incoming.length ? incoming : [emptyShot()];
-  finishRestore('Replaced with the backup: ' + shots.length + (shots.length === 1 ? ' shot.' : ' shots.'));
+  lib = {projects: incoming.projects, shots: incoming.shots};
+  curByProject = {};
+  finishRestore('Replaced with the backup: ' + lib.projects.length + (lib.projects.length === 1 ? ' project, ' : ' projects, ') + lib.shots.length + (lib.shots.length === 1 ? ' shot.' : ' shots.'));
 };
-const _openDir = openDir;
-openDir = function () { _openDir(); showLastBackup(); byId('libStatus').textContent = ''; byId('restoreAsk').hidden = true; incoming = null; };
-byId('dirBtn').onclick = openDir;
 
 load().then(render);
 
@@ -787,7 +1022,7 @@ if ('serviceWorker' in navigator) {
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
 if (!standalone && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document)
-  status.textContent = 'To install: tap Share, then Add to Home Screen, and always open VFX Shot Notes from that icon. Shots saved here in Safari stay separate from the app.';
+  (byId('projHint') || status).textContent = 'To install: tap Share, then Add to Home Screen, and always open VFX Shot Notes from that icon. Shots saved here in Safari stay separate from the app.';
 </script>
 </body>
 </html>

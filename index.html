@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VFX Shot Notes</title>
+<meta name="description" content="On-set VFX shot notes: one page per setup, carry-forward, searchable shot directory, PDF export.">
+<meta name="theme-color" content="#2b4566">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shot Notes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+/* Layout: one US Legal portrait sheet (8.5 x 14 in) per shot setup, following the Notability template: form sections stacked on top, 2 x 2 photo references below */
+:root{
+  --bg:#dfe5ea; --sheet:#ffffff; --fg:#17232c; --title:#2b4566; --muted:#4f6474;
+  --field:#eef2f5; --field-focus:#ffffff; --line:#a9b7c2; --rule:#7f93a4; --accent:#1f6f9a; --warn:#a4471a;
+  --carried:#4a5fc1; --carried-field:#eceffb;
+  --sans:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1317; --sheet:#151d23; --fg:#dde6ec; --title:#a9c4e2; --muted:#93a7b5;
+  --field:#1d2930; --field-focus:#24343d; --line:#3a4d59; --rule:#56707f; --accent:#5ab6e0; --warn:#e48a5c;
+  --carried:#9eaeff; --carried-field:#1f2638; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1317; --sheet:#151d23; --fg:#dde6ec; --title:#a9c4e2; --muted:#93a7b5;
+  --field:#1d2930; --field-focus:#24343d; --line:#3a4d59; --rule:#56707f; --accent:#5ab6e0; --warn:#e48a5c;
+  --carried:#9eaeff; --carried-field:#1f2638; color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);-webkit-text-size-adjust:100%}
+img{max-width:100%}[hidden]{display:none!important}
+body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.35 var(--sans);padding-block:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Toolbar: shot navigation on the left, actions on the right */
+.toolbar{max-width:900px;margin:0 auto 8px;display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.nav,.actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.count{font-weight:600;font-variant-numeric:tabular-nums;min-width:7.5em;text-align:center}
+#status{display:block;max-width:900px;margin:0 auto 10px;color:var(--muted);font-size:13px}
+main{max-width:900px;margin:auto;background:var(--sheet);padding:28px 30px 30px;border-radius:3px}
+.titlebar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;border-bottom:1.5px solid var(--rule);padding-bottom:3px}
+h1,h3{color:var(--title);font-weight:500;margin:0;letter-spacing:-.005em}
+h1{font-size:28px}
+.sheetno{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-variant-numeric:tabular-nums;white-space:nowrap}
+.legend{font-size:12px;color:var(--carried);font-style:italic;margin-top:5px}
+h3{font-size:24px;margin-top:20px;border-bottom:1.5px solid var(--rule);padding-bottom:3px}
+h2{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 4px;color:var(--fg)}
+h2:first-of-type{margin-top:8px}
+
+/* Rows of abutting boxes, label above each box, the whole cell is tappable */
+.row{display:grid;grid-template-columns:var(--cols);margin-top:6px}
+.cell{display:flex;flex-direction:column;min-width:0;cursor:text}
+.cell+.cell .box{border-left-width:0}
+.cap{font-size:11px;font-weight:700;padding:0 4px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box{display:block;width:100%;min-height:42px;border:1px solid var(--line);background:var(--field);color:var(--fg);
+  font:16px var(--mono);padding:9px 8px;border-radius:0;margin:0;-webkit-appearance:none;appearance:none}
+textarea.box{resize:vertical;font-family:var(--sans);line-height:1.4}
+.box:focus{outline:none;background:var(--field-focus);box-shadow:inset 0 0 0 2px var(--accent);position:relative;z-index:1}
+.cell:has(.box:focus) .cap{color:var(--accent)}
+.cell{position:relative}
+/* Keyboard switch shown inside the focused number-first box */
+#kb{position:absolute;right:5px;bottom:6px;z-index:3;min-height:0;padding:4px 8px;font:600 12px var(--sans);letter-spacing:.04em;
+  background:var(--accent);border-color:var(--accent);color:var(--sheet);border-radius:3px}
+.cell:has(#kb) .box{padding-right:52px}
+body.exporting #kb{display:none}
+/* Carried over from the previous setup and not yet changed */
+.box.carried{font-style:italic;color:var(--carried);background:var(--carried-field)}
+.box.carried:focus{background:var(--field-focus)}
+
+/* Take log */
+.log .row{margin-top:0}
+.log .row:not(.head)+.row .box{border-top-width:0}
+.log .head .cap{padding-top:2px}
+
+/* Photo references */
+.photos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.photo{position:relative;aspect-ratio:16/9;max-width:100%;border:1.5px solid var(--line);background:var(--field);overflow:hidden;display:grid;place-items:center;text-align:center;cursor:pointer}
+.photo:focus-within{box-shadow:inset 0 0 0 2px var(--accent)}
+.photo input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.photo .ph{pointer-events:none;font-weight:700;font-size:15px;letter-spacing:.03em;line-height:1.5}
+.photo .ph small{display:block;color:var(--muted);font-size:14px}
+.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.photo .tag{position:absolute;left:0;bottom:0;background:var(--sheet);color:var(--fg);font-size:11px;font-weight:700;padding:3px 7px;pointer-events:none;letter-spacing:.03em}
+.photo.carried{border:2px dashed var(--carried)}
+.photo.carried .tag{color:var(--carried);font-style:italic}
+.photo .rm{position:absolute;top:6px;right:6px;z-index:2;padding:4px 9px;font-size:12px;min-height:0}
+.photo:not(.has) .rm,.photo:not(.has) .tag{display:none}
+.photo.has .ph{display:none}
+
+button{font:500 14px var(--sans);padding:8px 13px;border:1px solid var(--line);border-radius:4px;background:var(--field);color:var(--fg);cursor:pointer;min-height:38px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--sheet)}
+button.carry{border-color:var(--carried);color:var(--carried);font-weight:600}
+button.danger{border-color:var(--warn);color:var(--warn)}
+button.icon{padding:8px 12px;font-size:16px;line-height:1}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+
+/* Directory of all shots */
+#dir{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
+.dirhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1.5px solid var(--rule);padding-bottom:10px}
+.dirhead h1{flex:1 1 auto}
+.search{width:100%;margin-top:12px;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:11px 12px;border-radius:4px}
+.search:focus{outline:none;box-shadow:inset 0 0 0 2px var(--accent);background:var(--field-focus)}
+.dayhead{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 6px;font-variant-numeric:tabular-nums}
+.list{display:grid;gap:6px}
+.item{display:grid;grid-template-columns:96px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;padding:8px;border:1px solid var(--line);border-radius:4px;background:var(--sheet);min-height:0}
+.item:hover{background:var(--field)}
+.item.current{box-shadow:inset 3px 0 0 var(--accent)}
+.thumb{width:96px;aspect-ratio:16/9;background:var(--field);border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;color:var(--muted);font-size:11px}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.it-title{font-weight:600;font-size:15px}
+.it-desc{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px;font:12px var(--mono);color:var(--fg)}
+.chips b{font:600 10px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:3px}
+.sheetnum{font:600 12px var(--sans);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.empty{color:var(--muted);padding:24px 4px}
+mark{background:color-mix(in srgb,var(--accent) 25%,transparent);color:inherit;padding:0 1px}
+body.in-dir main,body.in-dir .actions,body.in-dir .nav,body.in-dir #status{display:none}
+body:not(.in-dir) #dir,body:not(.in-dir) #back{display:none}
+
+@media(max-width:640px){
+  .item{grid-template-columns:72px minmax(0,1fr)}
+  .thumb{width:72px}
+  .sheetnum{grid-column:2}
+  main{padding:18px 14px}
+  .row{grid-template-columns:var(--cols-sm,var(--cols))}
+  .row.wrap .cell:nth-child(odd) .box{border-left-width:1px}
+  .row.wrap .cell:nth-child(n+3) .box{border-top-width:0}
+  .photos{grid-template-columns:1fr}
+}
+/* Export: fixed sheet width, light palette, no controls */
+body.exporting{--sheet:#ffffff;--fg:#17232c;--title:#2b4566;--muted:#4f6474;--field:#eef2f5;--line:#a9b7c2;--rule:#7f93a4;--carried:#4a5fc1;--carried-field:#eceffb}
+body.exporting main{width:816px;max-width:none;padding:24px 26px;border-radius:0}
+body.exporting .row{grid-template-columns:var(--cols)}
+body.exporting .photos{grid-template-columns:1fr 1fr}
+body.exporting .rm,body.exporting .photo .ph{display:none}
+body.exporting .box{font-size:13px;min-height:34px;padding:7px 7px}
+body.exporting .photo:not(.has) .ph{display:grid}
+@page{size:8.5in 14in;margin:.3in}
+@media print{body{background:#fff;padding:0}.toolbar,#status,.rm{display:none}main{max-width:none;padding:0}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="nav">
+    <button id="prev" class="icon" type="button" aria-label="Previous shot">‹</button>
+    <span id="count" class="count" aria-live="polite">Shot 1 of 1</span>
+    <button id="next" class="icon" type="button" aria-label="Next shot">›</button>
+    <button id="dirBtn" type="button">All shots</button>
+  </div>
+  <button id="back" type="button">‹ Back to shot</button>
+  <div class="actions">
+    <button id="carry" class="carry" type="button">Next setup</button>
+    <button id="blank" type="button">Blank shot</button>
+    <button id="del" type="button">Delete shot</button>
+    <span id="confirm" hidden><button id="confirmYes" class="danger" type="button">Delete this shot</button> <button id="confirmNo" type="button">Keep</button></span>
+    <button id="pdf" class="primary" type="button">Save PDF</button>
+    <button id="pdfAll" class="primary" type="button">Save all shots</button>
+    <button id="sharePdf" class="primary" type="button" hidden>Share PDF</button>
+  </div>
+</div>
+<span id="status" role="status">Tap anywhere in a box to type. Return moves to the next box. Next setup copies this shot onto a new page; blue italic marks anything you haven't changed yet.</span>
+
+<section id="dir" aria-label="All shots">
+  <div class="dirhead"><h1>All Shots</h1><span id="dirCount" class="sheetno"></span></div>
+  <input id="search" class="search" type="search" placeholder="Search scene, shot, lens, location, notes…" aria-label="Search all shots" autocomplete="off" enterkeyhint="search">
+  <div id="dirList"></div>
+</section>
+
+<main id="sheet">
+<div class="titlebar"><h1>VFX On-Set Shot Notes</h1><span id="sheetno" class="sheetno"></span></div>
+<div id="legend" class="legend" hidden>Blue italic = unchanged from the previous setup</div>
+<form id="shot" autocomplete="off">
+  <h2>Shot details</h2>
+  <div id="details"></div>
+  <h2>Camera and lens</h2>
+  <div id="camera"></div>
+  <h2>Take and clip log</h2>
+  <div id="takes" class="log"></div>
+  <h2>VFX acquisition and card / clip references</h2>
+  <div id="acq"></div>
+  <h2>Post and VFX notes</h2>
+  <label class="cell row" style="--cols:1fr" for="f-notes"><span class="cap">Intent, continuity, usable plates and missing coverage</span><textarea class="box" id="f-notes" name="notes" rows="6"></textarea></label>
+
+  <h3>Photo References</h3>
+  <div id="photos" class="photos"></div>
+</form>
+</main>
+
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>
+const byId = id => document.getElementById(id);
+const form = byId('shot');
+const status = byId('status');
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+
+/* ---------- Build the sheet (column widths follow the Notability template) ---------- */
+function row(cols, colsSm, cells, extraClass = '') {
+  return '<div class="row ' + extraClass + '" style="--cols:' + cols + (colsSm ? ';--cols-sm:' + colsSm : '') + '">' +
+    cells.map(([cap, name, kind]) => {
+      const id = 'f-' + slug(name);
+      const field = kind === 'area'
+        ? '<textarea class="box" id="' + id + '" name="' + name + '" rows="2"></textarea>'
+        : '<input class="box" id="' + id + '" name="' + name + '"' + (kind ? ' inputmode="' + kind + '"' : '') + ' enterkeyhint="next">';
+      return '<label class="cell" for="' + id + '"><span class="cap">' + cap + '</span>' + field + '</label>';
+    }).join('') + '</div>';
+}
+byId('details').innerHTML =
+  row('46fr 25.5fr 28.5fr', '1fr 1fr', [['Project','Project'],['Shoot day','Shoot day','decimal'],['Date','Date','decimal']], 'wrap') +
+  row('25fr 28fr 47fr', '1fr 1fr', [['Scene','Scene','decimal'],['Shot','Shot'],['Location','Location']], 'wrap') +
+  row('1fr', '', [['Shot description / action','Shot description','area']]);
+byId('camera').innerHTML =
+  row('repeat(4,1fr)', '1fr 1fr', [['Camera / roll','Camera roll'],['Lens / focal length','Lens','decimal'],['T-stop','T-stop','decimal'],['Filters','Filters']], 'wrap') +
+  row('repeat(4,1fr)', '1fr 1fr', [['Resolution / mode','Resolution','decimal'],['Framing','Framing','decimal'],['ISO / EI','ISO','numeric'],['WB / K','WB','numeric']], 'wrap') +
+  row('repeat(4,1fr)', '1fr 1fr', [['FPS','FPS','decimal'],['Shutter','Shutter','decimal'],['Height','Height','decimal'],['Tilt / direction','Tilt','decimal']], 'wrap') +
+  row('1fr 1fr', '', [['Subject distance','Subject distance','decimal'],['Background distance','Background distance','decimal']]);
+const TAKE_ROWS = 4;
+byId('takes').innerHTML =
+  '<div class="row head" style="--cols:10fr 21.5fr 68.5fr"><span class="cap">Take</span><span class="cap">Roll / clip</span><span class="cap">Purpose / settings / issues</span></div>' +
+  Array.from({length:TAKE_ROWS}, (_, i) =>
+    '<div class="row" style="--cols:10fr 21.5fr 68.5fr">' +
+    [['Take','numeric'],['Roll / clip','decimal'],['Purpose / settings / issues','']].map(([name, mode]) => {
+      const id = 't-' + slug(name) + '-' + i;
+      return '<label class="cell" for="' + id + '"><input class="box" id="' + id + '" name="' + name + ' ' + (i+1) + '" data-take aria-label="' + name + ', row ' + (i+1) + '"' + (mode ? ' inputmode="' + mode + '"' : '') + ' enterkeyhint="next"></label>';
+    }).join('') + '</div>').join('');
+byId('acq').innerHTML =
+  row('33.3fr 33.3fr 33.4fr', '1fr', [['Clean plate','Clean plate'],['Color chart','Color chart'],['HDRI / 360°','HDRI']]) +
+  row('33.3fr 33.3fr 33.4fr', '1fr', [['Element passes','Element passes'],['Scan / photogrammetry','Scan'],['Ref stills / video','Ref stills']]);
+const PHOTO_NAMES = ['Lens / camera','Camera position','Lighting / set','Monitor frame'];
+byId('photos').innerHTML = PHOTO_NAMES.map(name => {
+  const id = 'p-' + slug(name);
+  return '<div class="photo" data-name="' + name + '"><span class="ph">' + name.toUpperCase() + '<small>ADD PHOTO</small></span>' +
+    '<img hidden alt="' + name + ' reference"><span class="tag">' + name.toUpperCase() + '</span>' +
+    '<input type="file" id="' + id + '" accept="image/*" name="' + name + '" aria-label="Add or replace photo: ' + name + '">' +
+    '<button type="button" class="rm" aria-label="Remove ' + name + ' photo">Remove</button></div>';
+}).join('');
+const boxes = [...form.querySelectorAll('.box')];
+
+/* Number-first boxes: open on the number pad, with an ABC / 123 switch inside the box */
+boxes.filter(b => b.hasAttribute('inputmode')).forEach(b => { b.dataset.num = ''; b.inputMode = 'decimal'; });
+const kb = document.createElement('button');
+kb.type = 'button'; kb.id = 'kb'; kb.tabIndex = -1;
+const hasLetters = v => /[^0-9.,\/:°'"\-\s+x×%]/.test(v);
+function setKbLabel(el) { kb.textContent = el.inputMode === 'text' ? '123' : 'ABC'; kb.setAttribute('aria-label', el.inputMode === 'text' ? 'Switch to number pad' : 'Switch to letters'); }
+form.addEventListener('focusin', e => {
+  const el = e.target;
+  if (!el.matches?.('.box[data-num]')) { kb.remove(); return; }
+  if (!kb.isConnected || kb.parentElement !== el.parentElement) {
+    if (!el._kbKeep) el.inputMode = hasLetters(el.value) ? 'text' : 'decimal';
+    el.parentElement.appendChild(kb);
+  }
+  el._kbKeep = false;
+  setKbLabel(el);
+});
+form.addEventListener('focusout', e => { if (e.relatedTarget !== kb) setTimeout(() => { if (!form.querySelector('.box[data-num]:focus')) kb.remove(); }, 0); });
+kb.addEventListener('pointerdown', e => e.preventDefault()); /* keep the box focused */
+kb.addEventListener('mousedown', e => e.preventDefault());
+kb.addEventListener('click', e => {
+  e.preventDefault(); e.stopPropagation();
+  const el = kb.parentElement?.querySelector('.box'); if (!el) return;
+  el.inputMode = el.inputMode === 'text' ? 'decimal' : 'text';
+  el._kbKeep = true;
+  const pos = el.selectionStart;
+  el.blur(); el.focus(); /* re-open the keyboard in the new mode */
+  try { el.setSelectionRange(pos, pos); } catch {}
+  setKbLabel(el);
+});
+
+/* ---------- Shot data ---------- */
+const emptyShot = () => ({values:{}, carried:{}, photos:{}, photoCarried:{}});
+let shots = [emptyShot()], cur = 0;
+const shot = () => shots[cur];
+
+/* ---------- Storage: a per-browser convenience ---------- */
+const db = new Promise((resolve,reject) => {
+  try {
+    const req = indexedDB.open('vfx-shot-notes-v3',1);
+    req.onupgradeneeded = () => req.result.createObjectStore('state');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  } catch (e) { reject(e); }
+});
+db.catch(() => {});
+let storageOk = true;
+function warn() { storageOk = false; status.textContent = 'This browser is not keeping your shots. Save a PDF before closing the page.'; }
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const tx = (await db).transaction('state','readwrite');
+      tx.objectStore('state').put({shots, cur}, 'doc');
+      tx.onerror = warn; tx.onabort = warn;
+    } catch { warn(); }
+  }, 250);
+}
+async function load() {
+  try {
+    const d = await db;
+    const got = await new Promise((res, rej) => { const r = d.transaction('state').objectStore('state').get('doc'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    if (got?.shots?.length) { shots = got.shots; cur = Math.min(got.cur || 0, shots.length - 1); return; }
+    /* Bring over a draft from the previous version of this page, if any */
+    const old = await new Promise(res => {
+      try {
+        const q = indexedDB.open('vfx-shot-notes-v2');
+        q.onupgradeneeded = () => { q.transaction.abort(); res(null); };
+        q.onerror = () => res(null);
+        q.onsuccess = () => {
+          const odb = q.result;
+          if (!odb.objectStoreNames.contains('fields')) return res(null);
+          const out = {}; const c = odb.transaction('fields').objectStore('fields').openCursor();
+          c.onsuccess = () => { const e = c.result; if (!e) return res(out); out[e.key] = e.value; e.continue(); };
+          c.onerror = () => res(null);
+        };
+      } catch { res(null); }
+    });
+    if (old && Object.keys(old).length) {
+      const s = emptyShot();
+      for (const [k, v] of Object.entries(old)) (PHOTO_NAMES.includes(k) ? s.photos : s.values)[k] = v;
+      shots = [s]; cur = 0; save();
+    }
+  } catch { warn(); }
+}
+
+/* ---------- Render the current shot ---------- */
+const urls = new Map();
+function setPhoto(name, file, carried) {
+  const box = form.querySelector('.photo[data-name="' + name + '"]'), img = box.querySelector('img');
+  if (urls.has(name)) { URL.revokeObjectURL(urls.get(name)); urls.delete(name); }
+  box.classList.toggle('has', !!file);
+  box.classList.toggle('carried', !!(file && carried));
+  img.hidden = !file;
+  if (file) { const u = URL.createObjectURL(file); urls.set(name, u); img.src = u; } else img.removeAttribute('src');
+}
+function render() {
+  const s = shot();
+  boxes.forEach(el => {
+    el.value = s.values[el.name] ?? '';
+    el.classList.toggle('carried', !!(s.carried[el.name] && el.value));
+  });
+  PHOTO_NAMES.forEach(n => setPhoto(n, s.photos[n], s.photoCarried[n]));
+  byId('count').textContent = 'Shot ' + (cur + 1) + ' of ' + shots.length;
+  byId('sheetno').textContent = 'Sheet ' + (cur + 1) + ' of ' + shots.length;
+  byId('prev').disabled = cur === 0;
+  byId('next').disabled = cur === shots.length - 1;
+  updateLegend();
+  hideConfirm();
+}
+function updateLegend() {
+  const s = shot();
+  byId('legend').hidden = !(Object.keys(s.carried).some(k => s.values[k]) || Object.keys(s.photoCarried).some(k => s.photos[k]));
+}
+
+/* ---------- Editing ---------- */
+form.addEventListener('submit', e => e.preventDefault());
+form.addEventListener('input', ({target}) => {
+  if (!target.classList.contains('box')) return;
+  const s = shot();
+  s.values[target.name] = target.value;
+  if (s.carried[target.name]) { delete s.carried[target.name]; target.classList.remove('carried'); updateLegend(); }
+  save();
+});
+form.addEventListener('change', ({target}) => {
+  if (target.type !== 'file' || !target.files[0]) return;
+  const s = shot(), file = target.files[0];
+  s.photos[target.name] = file; delete s.photoCarried[target.name];
+  setPhoto(target.name, file, false); updateLegend(); save();
+  target.value = '';
+});
+form.addEventListener('click', e => {
+  const rm = e.target.closest('.rm'); if (!rm) return;
+  e.preventDefault();
+  const name = rm.closest('.photo').dataset.name, s = shot();
+  delete s.photos[name]; delete s.photoCarried[name];
+  setPhoto(name, null); updateLegend(); save();
+});
+/* Return moves to the next box (Shift+Return keeps a new line in text areas; the notes box always takes new lines) */
+form.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing) return;
+  const t = e.target;
+  if (!t.classList?.contains('box')) return;
+  if (t.tagName === 'TEXTAREA' && (e.shiftKey || t.id === 'f-notes')) return;
+  e.preventDefault();
+  const n = boxes[boxes.indexOf(t) + 1];
+  if (n) n.focus(); else t.blur();
+});
+
+/* ---------- Shot pages ---------- */
+function go(i) { cur = Math.max(0, Math.min(i, shots.length - 1)); render(); save(); window.scrollTo({top:0}); }
+byId('prev').onclick = () => go(cur - 1);
+byId('next').onclick = () => go(cur + 1);
+byId('carry').onclick = () => {
+  const s = shot(), n = emptyShot();
+  for (const [k, v] of Object.entries(s.values)) {
+    if (!v || form.elements.namedItem(k)?.dataset.take !== undefined) continue; /* takes start fresh */
+    n.values[k] = v; n.carried[k] = true;
+  }
+  for (const [k, f] of Object.entries(s.photos)) { if (f) { n.photos[k] = f; n.photoCarried[k] = true; } }
+  shots.splice(cur + 1, 0, n);
+  go(cur + 1);
+  status.textContent = 'New setup copied from shot ' + cur + '. Blue italic boxes are unchanged; anything you edit turns normal. The take log starts empty.';
+  byId('f-shot').focus();
+};
+byId('blank').onclick = () => {
+  shots.splice(cur + 1, 0, emptyShot());
+  go(cur + 1);
+  status.textContent = 'Blank shot added.';
+  byId('f-project').focus();
+};
+const delBtn = byId('del'), confirmBox = byId('confirm');
+function hideConfirm() { confirmBox.hidden = true; delBtn.hidden = false; }
+delBtn.onclick = () => {
+  delBtn.hidden = true; confirmBox.hidden = false;
+  status.textContent = shots.length > 1 ? 'Delete shot ' + (cur + 1) + '? This removes its notes and photos from this browser.' : 'Clear this shot? This removes its notes and photos from this browser.';
+};
+byId('confirmNo').onclick = () => { hideConfirm(); status.textContent = 'Kept this shot.'; };
+byId('confirmYes').onclick = () => {
+  if (shots.length > 1) { shots.splice(cur, 1); status.textContent = 'Shot deleted.'; go(Math.min(cur, shots.length - 1)); }
+  else { shots = [emptyShot()]; status.textContent = 'Cleared. Ready for the next shot.'; go(0); }
+};
+
+/* ---------- PDF export: one US Legal portrait page per shot ---------- */
+/* Hand the PDF to the iOS share sheet (Notability, Files, AirDrop, Mail); download elsewhere */
+let pendingFile = null;
+async function deliver(blob, filename) {
+  const file = new File([blob], filename, {type:'application/pdf'});
+  if (navigator.canShare && navigator.canShare({files:[file]})) {
+    try { await navigator.share({files:[file], title:filename}); return 'shared'; }
+    catch (e) {
+      if (e && e.name === 'AbortError') return 'cancelled';
+      pendingFile = file; byId('sharePdf').hidden = false; return 'ready'; /* share needs a fresh tap */
+    }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  return 'downloaded';
+}
+byId('sharePdf').onclick = async () => {
+  if (!pendingFile) return;
+  try { await navigator.share({files:[pendingFile], title:pendingFile.name}); status.textContent = 'PDF sent.'; pendingFile = null; byId('sharePdf').hidden = true; }
+  catch (e) { status.textContent = e && e.name === 'AbortError' ? 'PDF not sent. Tap Share PDF to try again.' : 'Could not open the share sheet.'; }
+};
+function nameFor(s, suffix) {
+  const v = k => (s.values[k] || '').trim();
+  const parts = [v('Project'), v('Scene') && 'Sc' + v('Scene'), v('Shot') && 'Sh' + v('Shot'), v('Date')].filter(Boolean);
+  return ((parts.length ? parts.join('_') : 'VFX_Shot_Notes') + (suffix || '')).replace(/[\\/:*?"<>|]+/g,'-') + '.pdf';
+}
+async function waitImages() {
+  await Promise.all([...form.querySelectorAll('.photo img:not([hidden])')].map(img => img.decode ? img.decode().catch(() => {}) : null));
+}
+async function exportShots(indices, filename) {
+  const btns = [byId('pdf'), byId('pdfAll')]; btns.forEach(b => b.disabled = true);
+  const keep = cur;
+  document.activeElement?.blur();
+  document.body.classList.add('exporting');
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:'portrait', unit:'in', format:[8.5,14]});
+    const m = .25, W = 8.5 - 2*m, H = 14 - 2*m;
+    for (let k = 0; k < indices.length; k++) {
+      status.textContent = 'Building the PDF… page ' + (k + 1) + ' of ' + indices.length;
+      cur = indices[k]; render(); await waitImages();
+      const canvas = await html2canvas(byId('sheet'), {scale:2.5, backgroundColor:'#ffffff', windowWidth:900});
+      const r = Math.min(W / canvas.width, H / canvas.height), w = canvas.width * r, h = canvas.height * r;
+      if (k) pdf.addPage([8.5,14], 'portrait');
+      pdf.addImage(canvas.toDataURL('image/jpeg', .9), 'JPEG', (8.5 - w) / 2, m, w, h);
+    }
+    document.body.classList.remove('exporting');
+    cur = keep; render();
+    const r = await deliver(pdf.output('blob'), filename);
+    status.textContent = r === 'shared' ? 'PDF sent.' : r === 'cancelled' ? 'PDF not sent.' :
+      r === 'ready' ? 'PDF ready. Tap Share PDF to send it to Notability, Files or AirDrop.' : 'PDF saved to your downloads.';
+  } catch (e) {
+    document.body.classList.remove('exporting');
+    cur = keep; render();
+    status.textContent = 'Could not build the PDF. Try again in a moment.';
+  } finally { btns.forEach(b => b.disabled = false); }
+}
+byId('pdf').onclick = () => exportShots([cur], nameFor(shot()));
+byId('pdfAll').onclick = () => exportShots(shots.map((_, i) => i), nameFor(shots[0], '_all-' + shots.length + '-shots'));
+
+/* ---------- Directory ---------- */
+const dirUrls = [];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hl(text, q) {
+  const t = esc(text); if (!q) return t;
+  const i = text.toLowerCase().indexOf(q); if (i < 0) return t;
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
+}
+function renderDir() {
+  dirUrls.splice(0).forEach(u => URL.revokeObjectURL(u));
+  const q = byId('search').value.trim().toLowerCase();
+  const groups = new Map(); let shown = 0;
+  shots.forEach((s, i) => {
+    const v = k => (s.values[k] || '').trim();
+    const hay = Object.values(s.values).join(' ').toLowerCase() + ' sheet ' + (i + 1);
+    if (q && !hay.includes(q)) return;
+    const day = v('Shoot day') ? 'Shoot day ' + v('Shoot day') + (v('Date') ? ' · ' + v('Date') : '') : (v('Date') || 'No shoot day');
+    if (!groups.has(day)) groups.set(day, []);
+    groups.get(day).push([s, i]); shown++;
+  });
+  let html = '';
+  for (const [day, items] of groups) {
+    html += '<div class="dayhead">' + esc(day) + '</div><div class="list">';
+    for (const [s, i] of items) {
+      const v = k => (s.values[k] || '').trim();
+      const title = [v('Scene') && 'Sc ' + v('Scene'), v('Shot') && 'Shot ' + v('Shot')].filter(Boolean).join(' · ') || 'Untitled shot';
+      const pic = s.photos['Monitor frame'] || s.photos['Camera position'] || s.photos['Lighting / set'] || s.photos['Lens / camera'];
+      let thumb = '<span class="thumb">No photo</span>';
+      if (pic) { const u = URL.createObjectURL(pic); dirUrls.push(u); thumb = '<span class="thumb"><img src="' + u + '" alt=""></span>'; }
+      const takes = Array.from({length:TAKE_ROWS}, (_, r) => v('Take ' + (r + 1)) || v('Roll / clip ' + (r + 1))).filter(Boolean).length;
+      const chips = [['Lens', v('Lens')], ['T', v('T-stop')], ['ISO', v('ISO')], ['Cam', v('Camera roll')], ['Loc', v('Location')], ['Takes', takes || '']]
+        .filter(([, x]) => x).map(([k, x]) => '<span><b>' + k + '</b>' + hl(String(x), q) + '</span>').join('');
+      html += '<button type="button" class="item' + (i === cur ? ' current' : '') + '" data-i="' + i + '">' + thumb +
+        '<span style="min-width:0"><span class="it-title">' + hl(title, q) + '</span>' +
+        (v('Shot description') ? '<span class="it-desc" style="display:block">' + hl(v('Shot description'), q) + '</span>' : '') +
+        (chips ? '<span class="chips">' + chips + '</span>' : '') + '</span>' +
+        '<span class="sheetnum">Sheet ' + (i + 1) + '</span></button>';
+    }
+    html += '</div>';
+  }
+  byId('dirList').innerHTML = shown ? html : '<p class="empty">' + (q ? 'No shots match “' + esc(q) + '”.' : 'No shots yet.') + '</p>';
+  byId('dirCount').textContent = (q ? shown + ' of ' : '') + shots.length + (shots.length === 1 ? ' shot' : ' shots');
+}
+function openDir() {
+  document.body.classList.add('in-dir');
+  byId('back').textContent = '‹ Back to shot ' + (cur + 1);
+  renderDir(); window.scrollTo({top:0});
+  if (matchMedia('(pointer: fine)').matches) byId('search').focus({preventScroll:true});
+}
+function closeDir(i) {
+  document.body.classList.remove('in-dir');
+  dirUrls.splice(0).forEach(u => URL.revokeObjectURL(u));
+  if (i !== undefined) { go(i); status.textContent = 'Opened shot ' + (i + 1) + '.'; } else window.scrollTo({top:0});
+}
+byId('dirBtn').onclick = openDir;
+byId('back').onclick = () => closeDir();
+byId('search').addEventListener('input', renderDir);
+byId('search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { const first = byId('dirList').querySelector('.item'); if (first) closeDir(+first.dataset.i); }
+  if (e.key === 'Escape') closeDir();
+});
+byId('dirList').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) closeDir(+it.dataset.i); });
+
+load().then(render);
+
+/* Standalone app: offline support, durable storage, install hint */
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+if (!standalone && /iPhone|iPad|Macintosh/.test(navigator.userAgent) && 'ontouchend' in document)
+  status.textContent = 'To install: tap Share, then Add to Home Screen, and always open VFX Shot Notes from that icon. Shots saved here in Safari stay separate from the app.';
+</script>
+</body>
+</html>

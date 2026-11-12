@@ -167,9 +167,10 @@ body:not(.view-dir) #dir, body:not(.view-projects) #projects, body:not(.view-she
 body:not(.view-sheet) .actions, body:not(.view-sheet) .nav, body:not(.view-sheet) #status{display:none}
 body:not(.view-dir) #back{display:none}
 body.view-projects .toolbar{display:none}
-.projname{font-weight:600;color:var(--title);max-width:14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Project name gets its own full line above the shot controls, wrapping instead of being cut off */
+.projname{flex:1 1 100%;order:-1;font-weight:600;font-size:18px;line-height:1.25;color:var(--title);overflow-wrap:anywhere;text-wrap:balance}
+.projname:empty{display:none}
 .shotnav{display:flex;gap:6px;align-items:center}
-@media(max-width:640px){.projname{flex:1 1 0;max-width:none;min-width:0}}
 #projects{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
 .newproj{display:flex;gap:8px;margin-top:14px}
 .newproj input{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:10px 12px;border-radius:4px}

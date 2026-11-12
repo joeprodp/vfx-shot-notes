@@ -277,7 +277,7 @@ body.view-projects .toolbar{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 13 · updated Nov 12, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 14 · updated Nov 12, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
@@ -1030,13 +1030,17 @@ byId('backup').onclick = async () => {
   const btn = byId('backup'), ls = byId('libStatus');
   btn.disabled = true; ls.textContent = 'Preparing backup…';
   try {
-    const keep = lib.shots.filter(hasContent), out = [];
+    const keep = lib.shots.filter(hasContent), out = [], assets = {}, seen = new Map();
     for (const s of keep) {
       const photos = {};
-      for (const [k, f] of Object.entries(s.photos)) if (f) photos[k] = await toDataUrl(f);
+      for (const [k, f] of Object.entries(s.photos)) {
+        if (!f) continue;
+        if (!seen.has(f)) { const id = 'p' + seen.size; seen.set(f, id); assets[id] = await toDataUrl(f); } /* carried photos are stored once */
+        photos[k] = 'asset:' + seen.get(f);
+      }
       out.push({id:s.id, bcam:!!s.bcam, projectId:s.projectId, created:s.created, updated:s.updated, values:s.values, carried:s.carried, photoCarried:s.photoCarried, photos});
     }
-    const json = JSON.stringify({app:'vfx-shot-notes', format:2, exported:new Date().toISOString(), projects:lib.projects, shots:out});
+    const json = JSON.stringify({app:'vfx-shot-notes', format:3, exported:new Date().toISOString(), projects:lib.projects, shots:out, assets});
     const r = await saveFile(new Blob([json], {type:'application/json'}), 'VFX_Shot_Notes_backup_' + stamp() + '_' + lib.projects.length + '-projects.json', 'application/json');
     if (r === 'saved' || r === 'shared' || r === 'downloaded') { lastBackup = Date.now(); save(); showLastBackup(); }
     const mb = (json.length / 1048576).toFixed(1);
@@ -1053,9 +1057,13 @@ byId('restoreFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text());
     if (d.app !== 'vfx-shot-notes' || !Array.isArray(d.shots)) throw new Error('not a backup');
+    const assetBlobs = {};
+    const toBlob = v => (typeof v === 'string' && v.startsWith('asset:'))
+      ? (assetBlobs[v] || (assetBlobs[v] = fromDataUrl((d.assets || {})[v.slice(6)])))
+      : fromDataUrl(v);
     const list = d.shots.map(s => ({id: s.id || newId(), projectId: s.projectId || null, created: s.created || Date.now(), updated: s.updated || s.created || Date.now(),
       values: s.values || {}, carried: s.carried || {}, photoCarried: s.photoCarried || {}, bcam: !!s.bcam,
-      photos: Object.fromEntries(Object.entries(s.photos || {}).map(([k, v]) => [k, fromDataUrl(v)]))}));
+      photos: Object.fromEntries(Object.entries(s.photos || {}).map(([k, v]) => [k, toBlob(v)]))}));
     incoming = {projects: [], shots: []};
     if (Array.isArray(d.projects) && d.projects.length) { incoming.projects = d.projects.map(p => ({...p})); incoming.shots = list; }
     else groupIntoProjects(list, incoming); /* older backups had no projects */

@@ -225,16 +225,17 @@ body:not(.view-settings) #settings, body:not(.view-settings) #backSettings{displ
 .sethead{margin:0 !important}
 .pdfmenu{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--sheet)}
 #pdf.menu-open{display:none}
-body.view-projects:not(.can-undo) .toolbar{display:none}
 body.view-projects .toolbar{justify-content:flex-end}
 /* Project name gets its own full line above the shot controls, wrapping instead of being cut off */
 .projname{flex:1 1 100%;order:-1;font-weight:600;font-size:18px;line-height:1.25;color:var(--title);overflow-wrap:anywhere;text-wrap:balance}
 .projname:empty{display:none}
 .shotnav{display:flex;gap:6px;align-items:center}
 /* Undo: available on every screen once there's something to undo */
-#undo{order:5}
-body:not(.can-undo) #undo{display:none}
-#undo .ulabel{color:var(--muted);font-weight:400;margin-left:6px;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+/* Undo and Redo travel together as one group */
+.undogroup{order:5;display:flex;gap:6px;margin-left:auto}
+body:not(.can-undo) #undo, body:not(.can-redo) #redo{display:none}
+body.view-projects:not(.can-undo):not(.can-redo) .toolbar{display:none}
+#undo .ulabel, #redo .ulabel{color:var(--muted);font-weight:400;margin-left:6px;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
 /* Menu for the less frequent shot actions */
 .menuwrap{position:relative}
 #menuBtn{font-size:18px;line-height:1;padding:8px 13px}
@@ -243,7 +244,7 @@ body:not(.can-undo) #undo{display:none}
 .menu button:hover{background:var(--field)}
 .menu button.danger{color:var(--warn)}
 .menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
-@media (max-width:640px){#undo .ulabel{display:none}}
+@media (max-width:640px){#undo .ulabel, #redo .ulabel, #undo .uword, #redo .uword{display:none} #undo, #redo{padding:8px 12px;font-size:19px;line-height:1}}
 #projects{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
 .newproj{display:flex;gap:8px;margin-top:14px}
 .newproj input{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:10px 12px;border-radius:4px}
@@ -276,7 +277,10 @@ body:not(.can-undo) #undo{display:none}
     </span>
   </div>
   <button id="back" type="button">‹ Back to shot</button>
-  <button id="undo" type="button" title="Undo (⌘Z)">↶ Undo<span class="ulabel" id="undoLabel"></span></button>
+  <span class="undogroup">
+    <button id="undo" type="button" title="Undo (⌘Z)"><span class="uarrow">↶</span><span class="uword"> Undo</span><span class="ulabel" id="undoLabel"></span></button>
+    <button id="redo" type="button" title="Redo (⇧⌘Z)"><span class="uarrow">↷</span><span class="uword"> Redo</span><span class="ulabel" id="redoLabel"></span></button>
+  </span>
   <button id="backSettings" type="button">‹ All shots</button>
   <div class="actions">
     <button id="carry" class="carry" type="button">Next setup</button>
@@ -325,7 +329,7 @@ body:not(.can-undo) #undo{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 17 · updated Nov 13, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 18 · updated Nov 13, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
@@ -506,21 +510,22 @@ const shot = () => shots[cur];
 const project = () => lib.projects.find(p => p.id === curProject);
 const projShots = id => lib.shots.filter(s => s.projectId === id).sort((a, b) => (a.created || 0) - (b.created || 0));
 /* ---------- Undo: snapshots of the library taken before each change (this session only) ---------- */
-const undoStack = []; let lastTypeKey = '', lastTypeAt = 0;
+const undoStack = [], redoStack = []; let lastTypeKey = '', lastTypeAt = 0;
 const copyShot = s => ({...s, values: {...s.values}, carried: {...s.carried}, photos: {...s.photos}, photoCarried: {...s.photoCarried}});
+const snap = label => ({label, projects: lib.projects.map(p => ({...p})), shots: lib.shots.map(copyShot), curProject, cur, curByProject: {...curByProject}});
 function pushUndo(label) {
-  undoStack.push({label, projects: lib.projects.map(p => ({...p})), shots: lib.shots.map(copyShot), curProject, cur, curByProject: {...curByProject}});
+  undoStack.push(snap(label)); redoStack.length = 0; /* a new change clears Redo */
   if (undoStack.length > 60) undoStack.shift();
   showUndo();
 }
 function showUndo() {
-  const top = undoStack[undoStack.length - 1];
-  document.body.classList.toggle('can-undo', !!top);
-  byId('undoLabel').textContent = top ? top.label : '';
-  byId('undo').setAttribute('aria-label', top ? 'Undo ' + top.label : 'Undo');
+  const u = undoStack[undoStack.length - 1], r = redoStack[redoStack.length - 1];
+  document.body.classList.toggle('can-undo', !!u); document.body.classList.toggle('can-redo', !!r);
+  byId('undoLabel').textContent = u ? u.label : ''; byId('redoLabel').textContent = r ? r.label : '';
+  byId('undo').setAttribute('aria-label', u ? 'Undo ' + u.label : 'Undo');
+  byId('redo').setAttribute('aria-label', r ? 'Redo ' + r.label : 'Redo');
 }
-function undo() {
-  const u = undoStack.pop(); if (!u) return;
+function applySnap(u, verb) {
   lastTypeKey = '';
   lib = {projects: u.projects.map(p => ({...p})), shots: u.shots.map(copyShot)};
   curByProject = {...u.curByProject};
@@ -529,12 +534,14 @@ function undo() {
   else if (u.curProject !== curProject || view === 'projects') curProject = u.curProject;
   if (curProject) { refreshShots(); cur = Math.max(0, Math.min(u.cur, shots.length - 1)); }
   save(); showUndo();
-  const msg = 'Undid: ' + u.label + '.';
+  const msg = verb + ': ' + u.label + '.';
   if (!curProject || view === 'projects') { showProjects(); byId('libStatus').textContent = msg; }
   else if (view === 'dir') { renderDir(); byId('moveStatus').textContent = msg; }
   else if (view === 'settings') { openSettings(); byId('dirStatus').textContent = msg; }
   else { render(); status.textContent = msg; }
 }
+function undo() { const u = undoStack.pop(); if (!u) return; redoStack.push(snap(u.label)); applySnap(u, 'Undid'); }
+function redo() { const r = redoStack.pop(); if (!r) return; undoStack.push(snap(r.label)); applySnap(r, 'Redid'); }
 function refreshShots() { shots = projShots(curProject); if (!shots.length) { const s = emptyShot(); s.projectId = curProject; if (project()) s.values.Project = project().name; lib.shots.push(s); shots = [s]; } cur = Math.max(0, Math.min(cur, shots.length - 1)); }
 function addShot(s) { s.projectId = curProject; lib.shots.push(s); shots = projShots(curProject); return shots.indexOf(s); }
 function newProject(name) { const t = now(); const p = {id:newId(), name:name.trim() || 'Untitled project', created:t, updated:t}; lib.projects.push(p); return p; }
@@ -1359,8 +1366,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu();
 byId('menuSettings').onclick = () => { closeMenu(); openSettings(); };
 byId('del').addEventListener('click', closeMenu);
 byId('undo').onclick = undo;
+byId('redo').onclick = redo;
 document.addEventListener('keydown', e => {
-  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea')) { e.preventDefault(); undo(); }
+  if (!(e.metaKey || e.ctrlKey) || e.target.closest('input, textarea')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
 });
 showUndo();
 load().then(render);

@@ -305,7 +305,7 @@ body.view-projects .toolbar{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 15 · updated Nov 13, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 16 · updated Nov 13, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
@@ -504,25 +504,66 @@ function groupIntoProjects(list, into) {
 /* ---------- Storage: on this device only ---------- */
 const db = new Promise((resolve,reject) => {
   try {
-    const req = indexedDB.open('vfx-shot-notes-v3',1);
-    req.onupgradeneeded = () => req.result.createObjectStore('state');
-    req.onsuccess = () => resolve(req.result);
+    const req = indexedDB.open('vfx-shot-notes-v3',2);
+    req.onupgradeneeded = () => { const d = req.result; if (!d.objectStoreNames.contains('state')) d.createObjectStore('state'); if (!d.objectStoreNames.contains('photos')) d.createObjectStore('photos'); };
+    req.onsuccess = () => { req.result.onversionchange = () => req.result.close(); resolve(req.result); }; /* let a newer copy of the app upgrade storage */
     req.onerror = () => reject(req.error);
   } catch (e) { reject(e); }
 });
 db.catch(() => {});
 function warn() { status.textContent = 'This browser is not keeping your shots. Save a PDF before closing the page.'; }
-let saveTimer;
+/* Photos live in their own store, written once each as raw bytes; the main record only names them.
+   (Safari loses track of photos kept inside a record that gets rewritten, which showed as broken images.) */
+const photoId = new WeakMap();
+async function memBlob(b) { const buf = await b.arrayBuffer(); return new Blob([buf], {type: b.type || 'image/jpeg'}); }
+let saveTimer, saving = Promise.resolve();
 function save() {
   if (curProject) curByProject[curProject] = cur;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      const tx = (await db).transaction('state','readwrite');
-      tx.objectStore('state').put({lib, curProject, curByProject, lastBackup, openDays}, 'lib');
-      tx.onerror = warn; tx.onabort = warn;
-    } catch { warn(); }
-  }, 250);
+  saveTimer = setTimeout(() => { saving = saving.then(writeAll, writeAll); }, 250);
+}
+async function writeAll() {
+  try {
+    const fresh = [];
+    const plain = lib.shots.map(s => {
+      const photos = {};
+      for (const [k, f] of Object.entries(s.photos || {})) {
+        if (!f) continue;
+        if (!photoId.has(f)) { photoId.set(f, newId()); fresh.push(f); }
+        photos[k] = 'pid:' + photoId.get(f);
+      }
+      return {...s, photos};
+    });
+    const bufs = [];
+    for (const f of fresh) bufs.push([photoId.get(f), {buf: await f.arrayBuffer(), type: f.type || 'image/jpeg'}]);
+    const tx = (await db).transaction(['state', 'photos'], 'readwrite');
+    const ps = tx.objectStore('photos'); for (const [id, v] of bufs) ps.put(v, id);
+    tx.objectStore('state').put({lib: {projects: lib.projects, shots: plain}, curProject, curByProject, lastBackup, openDays, v: 2}, 'lib');
+    await new Promise(r => { tx.oncomplete = r; tx.onabort = tx.onerror = () => { for (const f of fresh) photoId.delete(f); warn(); r(); }; });
+  } catch { warn(); }
+}
+/* Turn the stored record back into shots with photos in memory; also tidies away photos nothing uses */
+async function loadPhotos(d, shotsIn) {
+  const store = d.transaction('photos').objectStore('photos');
+  const all = await new Promise((res, rej) => { const out = new Map(), r = store.openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return res(out); out.set(c.key, c.value); c.continue(); }; r.onerror = () => rej(r.error); });
+  const made = new Map(), used = new Set(); let migrate = false;
+  for (const s of shotsIn) {
+    const photos = {};
+    for (const [k, v] of Object.entries(s.photos || {})) {
+      if (typeof v === 'string' && v.startsWith('pid:')) {
+        const id = v.slice(4), rec = all.get(id); if (!rec) continue;
+        if (!made.has(id)) { const b = new Blob([rec.buf], {type: rec.type}); photoId.set(b, id); made.set(id, b); }
+        photos[k] = made.get(id); used.add(id);
+      } else if (v instanceof Blob) { /* older version kept the photo inside the record */
+        if (!made.has(v)) { try { made.set(v, await memBlob(v)); } catch { continue; } }
+        photos[k] = made.get(v); migrate = true;
+      }
+    }
+    s.photos = photos;
+  }
+  const unused = [...all.keys()].filter(id => !used.has(id));
+  if (unused.length) { const tx = d.transaction('photos', 'readwrite'); unused.forEach(id => tx.objectStore('photos').delete(id)); }
+  return migrate;
 }
 async function load() {
   try {
@@ -531,6 +572,7 @@ async function load() {
     const got = await get('lib');
     if (got?.lib) {
       lib = got.lib; curProject = got.curProject; curByProject = got.curByProject || {}; lastBackup = got.lastBackup || null; openDays = got.openDays || {};
+      if (await loadPhotos(d, lib.shots)) save();
     } else {
       /* Upgrade from the single-list version: sort existing shots into projects by their Project box */
       const old = await get('doc');
@@ -613,7 +655,8 @@ form.addEventListener('change', async ({target}) => {
   if (target.type !== 'file' || !target.files[0]) return;
   const s = shot(), name = target.name, raw = target.files[0];
   target.value = '';
-  const file = await shrink(raw);
+  let file = await shrink(raw);
+  try { file = await memBlob(file); } catch {} /* keep our own copy, not a link to the picked file */
   s.photos[name] = file; delete s.photoCarried[name]; s.updated = Date.now(); touchProject();
   if (s === shot()) { setPhoto(name, file, false); updateLegend(); }
   save();
@@ -945,7 +988,7 @@ function renderProjects() {
   byId('projCount').textContent = lib.projects.length + (lib.projects.length === 1 ? ' project' : ' projects');
 }
 function showProjects() {
-  if (curProject) curByProject[curProject] = cur;
+  if (curProject && shots[cur]?.projectId === curProject) curByProject[curProject] = cur; /* not at start-up, before a project is open */
   setView('projects'); renderProjects(); showLastBackup();
   byId('libStatus').textContent = ''; byId('restoreAsk').hidden = true; incoming = null;
 }

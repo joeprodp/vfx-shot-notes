@@ -155,9 +155,37 @@ button:disabled{opacity:.45;cursor:default}
 .chips b{font:600 10px var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:3px}
 .sheetnum{font:600 12px var(--sans);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{color:var(--muted);padding:24px 4px}
+/* Date folders inside a project */
+.folder{margin-top:10px;border:1px solid var(--line);border-radius:4px;background:var(--sheet)}
+.foldrow{display:flex;align-items:center;gap:8px;background:var(--field);border-radius:4px;padding-right:10px}
+.foldhead{flex:1 1 auto;display:flex;align-items:center;gap:10px;min-width:0;text-align:left;padding:12px 14px;border:0;background:transparent;min-height:50px;font:600 15px var(--sans);color:var(--title);text-transform:none;letter-spacing:0}
+.foldhead:hover{background:transparent}
+.chev{color:var(--muted);transition:transform .15s;flex:none}
+.folder.open .chev{transform:rotate(90deg)}
+.fname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmeta{margin-left:auto;font:600 13px var(--sans);color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.folder .list{padding:8px}
+.folder:not(.open) .list{display:none}
+.fsel{display:none;flex:none}
+body.selecting .fsel{display:inline-flex}
+/* Selecting notes to move */
+.item{position:relative}
+.tick{display:none;position:absolute;left:3px;top:3px;width:26px;height:26px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.35);color:#fff;font:700 15px/22px var(--sans);text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+body.selecting .tick{display:block}
+.item.sel .tick{background:var(--accent)}
+.item.sel{box-shadow:inset 0 0 0 2px var(--accent)}
+body.selecting #dirList .item.current:not(.sel){box-shadow:none}
+.movebar{position:sticky;bottom:0;z-index:5;margin:14px -24px -26px;padding:12px 24px calc(12px + env(safe-area-inset-bottom));background:var(--sheet);border-top:1.5px solid var(--rule);display:grid;gap:10px}
+.moverow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.moverow .selcount{flex:1 1 auto;font-weight:600}
+.movepanel{display:grid;gap:10px}
+.movepanel label{display:grid;gap:4px;font:600 12px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.movepanel select,.movepanel input{width:100%;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:9px 10px;border-radius:4px;min-height:42px;text-transform:none;letter-spacing:0}
+.movepanel .libnote{text-transform:none;letter-spacing:0;font-weight:400}
 mark{background:color-mix(in srgb,var(--accent) 25%,transparent);color:inherit;padding:0 1px}
 
 @media(max-width:640px){
+  .movebar{margin:14px -14px -18px;padding-left:14px;padding-right:14px}
   .item{grid-template-columns:72px minmax(0,1fr)}
   .thumb{width:72px}
   .sheetnum{grid-column:2}
@@ -243,7 +271,7 @@ body.view-projects .toolbar{display:none}
     <button id="pdf" class="primary" type="button">Save PDF</button>
     <span id="pdfMenu" class="pdfmenu" hidden>
       <button id="pdfOne" class="primary" type="button">This shot</button>
-      <button id="pdfDay" class="primary" type="button">This shoot day</button>
+      <button id="pdfDay" class="primary" type="button">This day</button>
       <button id="pdfAll" class="primary" type="button">Whole project</button>
       <button id="pdfCancel" type="button">Cancel</button>
     </span>
@@ -277,15 +305,26 @@ body.view-projects .toolbar{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 14 · updated Nov 12, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 15 · updated Nov 13, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
 <section id="dir" aria-label="All shots">
   <div class="dirhead"><div style="flex:1 1 auto;min-width:0"><div class="dirsub">All shots</div><h1 id="dirTitle">Project</h1></div><span id="dirCount" class="sheetno"></span></div>
-  <div class="projtools"><button id="settingsBtn" type="button">Project settings</button></div>
+  <div class="projtools"><button id="settingsBtn" type="button">Project settings</button> <button id="selBtn" type="button">Move notes</button> <button id="foldAll" class="linkbtn" type="button">Open all days</button></div>
   <input id="search" class="search" type="search" placeholder="Search scene, shot, lens, location, notes…" aria-label="Search this project's shots" autocomplete="off" enterkeyhint="search">
+  <p id="moveStatus" class="libnote" role="status" style="margin-top:8px"></p>
   <div id="dirList"></div>
+  <div id="moveBar" class="movebar" hidden>
+    <div class="moverow"><span id="selCount" class="selcount">Tap notes to select them</span><button id="moveOpen" class="primary" type="button" disabled>Move…</button><button id="selDone" type="button">Cancel</button></div>
+    <div id="movePanel" class="movepanel" hidden>
+      <label>Move to project<select id="moveProj"></select></label>
+      <label id="moveNewWrap" hidden>New project name<input id="moveNewProj" autocomplete="off" enterkeyhint="done"></label>
+      <label>Move to date<input id="moveDate" type="date"></label>
+      <p class="libnote">Leave the date empty to keep each note's own date. The Date box on the sheet isn't changed.</p>
+      <div class="moverow"><button id="moveGo" class="primary" type="button">Move</button></div>
+    </div>
+  </div>
 </section>
 
 <!-- Project settings: import, rename, delete -->
@@ -439,7 +478,9 @@ let lastStamp = 0; /* strictly increasing creation times keep the order stable *
 const now = () => (lastStamp = Math.max(Date.now(), lastStamp + 1));
 const emptyShot = () => { const t = now(); return {id:newId(), projectId:null, created:t, updated:t, values:{}, carried:{}, photos:{}, photoCarried:{}}; };
 let lib = {projects: [], shots: []};
-let curProject = null, curByProject = {}, lastBackup = null;
+let curProject = null, curByProject = {}, lastBackup = null, openDays = {};
+/* Highest creation time that isn't in the future (a note moved to a later date mustn't push new shots forward) */
+const pastMax = list => Math.max(0, ...list.filter(t => t <= Date.now()));
 let shots = [emptyShot()], cur = 0;
 const shot = () => shots[cur];
 const project = () => lib.projects.find(p => p.id === curProject);
@@ -478,7 +519,7 @@ function save() {
   saveTimer = setTimeout(async () => {
     try {
       const tx = (await db).transaction('state','readwrite');
-      tx.objectStore('state').put({lib, curProject, curByProject, lastBackup}, 'lib');
+      tx.objectStore('state').put({lib, curProject, curByProject, lastBackup, openDays}, 'lib');
       tx.onerror = warn; tx.onabort = warn;
     } catch { warn(); }
   }, 250);
@@ -489,7 +530,7 @@ async function load() {
     const get = key => new Promise((res, rej) => { const r = d.transaction('state').objectStore('state').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
     const got = await get('lib');
     if (got?.lib) {
-      lib = got.lib; curProject = got.curProject; curByProject = got.curByProject || {}; lastBackup = got.lastBackup || null;
+      lib = got.lib; curProject = got.curProject; curByProject = got.curByProject || {}; lastBackup = got.lastBackup || null; openDays = got.openDays || {};
     } else {
       /* Upgrade from the single-list version: sort existing shots into projects by their Project box */
       const old = await get('doc');
@@ -501,7 +542,7 @@ async function load() {
         if (lib.projects.length) save();
       }
     }
-    lastStamp = Math.max(0, ...lib.shots.map(s => s.created || 0), ...lib.projects.map(p => p.created || 0));
+    lastStamp = pastMax([...lib.shots.map(s => s.created || 0), ...lib.projects.map(p => p.created || 0)]);
   } catch { warn(); }
   if (!lib.projects.find(p => p.id === curProject)) curProject = null;
   showProjects();
@@ -808,20 +849,21 @@ async function exportShots(indices, filename) {
   } finally { btns.forEach(b => b.disabled = false); }
 }
 /* One Save PDF button: this shot, this shoot day, or the whole project */
-const dayKey = s => [(s.values['Shoot day'] || '').trim(), (s.values.Date || '').trim()].join('|');
-function dayIndices() { const k = dayKey(shot()); return k === '|' ? [] : shots.map((s, i) => [s, i]).filter(([s]) => dayKey(s) === k && hasContent(s)).map(([, i]) => i); }
+const dateKey = t => { const d = new Date(t || Date.now()), p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); };
+const dayKey = s => dateKey(s.created);
+function dayIndices() { const k = dayKey(shot()); return shots.map((s, i) => [s, i]).filter(([s]) => dayKey(s) === k && hasContent(s)).map(([, i]) => i); }
 function closePdfMenu() { byId('pdfMenu').hidden = true; byId('pdf').classList.remove('menu-open'); }
 byId('pdf').onclick = () => {
-  const day = dayIndices(), all = shots.filter(hasContent).length || 1, d = (shot().values['Shoot day'] || '').trim();
-  byId('pdfDay').hidden = day.length < 2;
-  byId('pdfDay').textContent = (d ? 'Shoot day ' + d : 'This date') + ' (' + day.length + ')';
+  const day = dayIndices(), all = shots.filter(hasContent).length || 1;
+  byId('pdfDay').hidden = day.length < 2 || day.length === all;
+  byId('pdfDay').textContent = new Date(shot().created).toLocaleDateString([], {month:'short', day:'numeric'}) + ' (' + day.length + ')';
   byId('pdfAll').textContent = 'Whole project (' + all + ')';
   byId('pdfAll').hidden = all < 2;
   byId('pdfMenu').hidden = false; byId('pdf').classList.add('menu-open');
 };
 byId('pdfCancel').onclick = closePdfMenu;
 byId('pdfOne').onclick = () => { closePdfMenu(); exportShots([cur], nameFor(shot())); };
-byId('pdfDay').onclick = () => { closePdfMenu(); const ix = dayIndices(), d = (shot().values['Shoot day'] || '').trim(); exportShots(ix, nameFor(shots[ix[0]], '_' + (d ? 'day-' + d : 'date') + '_' + ix.length + '-shots')); };
+byId('pdfDay').onclick = () => { closePdfMenu(); const ix = dayIndices(); exportShots(ix, nameFor(shots[ix[0]], '_' + dayKey(shot()) + '_' + ix.length + '-shots')); };
 byId('pdfAll').onclick = () => { closePdfMenu(); const ix = shots.map((s, i) => [s, i]).filter(([s]) => hasContent(s)).map(([, i]) => i); const use = ix.length ? ix : [cur]; exportShots(use, nameFor(shots[use[0]], '_all-' + use.length + '-shots')); };
 
 /* ---------- Import shots from a PDF made by this app ---------- */
@@ -929,63 +971,155 @@ function hl(text, q) {
   const i = text.toLowerCase().indexOf(q); if (i < 0) return t;
   return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length));
 }
+/* Shots are filed in date folders by the day they were created (newest notes go into today's folder) */
+let selecting = false; const selected = new Set();
+const isOpen = k => (openDays[curProject] || [dayKey(shot())]).includes(k);
+function setOpen(k, on) {
+  const list = new Set(openDays[curProject] || [dayKey(shot())]);
+  on ? list.add(k) : list.delete(k); openDays[curProject] = [...list]; save();
+}
 function renderDir() {
   dirUrls.splice(0).forEach(u => URL.revokeObjectURL(u));
   byId('dirTitle').textContent = project()?.name || 'Project';
   const q = byId('search').value.trim().toLowerCase();
   const groups = new Map(); let shown = 0;
   shots.forEach((s, i) => {
-    const v = k => (s.values[k] || '').trim();
     const hay = Object.values(s.values).join(' ').toLowerCase() + ' sheet ' + (i + 1);
     if (q && !hay.includes(q)) return;
-    const d = v('Shoot day') ? 'Shoot day ' + v('Shoot day') + (v('Date') ? ' · ' + v('Date') : '') : (v('Date') || 'No shoot day');
-    if (!groups.has(d)) groups.set(d, []);
-    groups.get(d).push([s, i]); shown++;
+    const k = dayKey(s);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push([s, i]); shown++;
   });
   let html = '';
-  for (const [d, items] of groups) {
-    html += '<div class="dayhead">' + esc(d) + '</div><div class="list">';
+  for (const [k, items] of groups) {
+    const days = [...new Set(items.map(([s]) => (s.values['Shoot day'] || '').trim()).filter(Boolean))];
+    const label = new Date(items[0][0].created || Date.now()).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric', year:'numeric'});
+    const open = q || isOpen(k), allSel = items.every(([s]) => selected.has(s.id));
+    html += '<div class="folder' + (open ? ' open' : '') + '" data-k="' + k + '"><div class="foldrow">' +
+      '<button type="button" class="foldhead" aria-expanded="' + !!open + '"><span class="chev" aria-hidden="true">›</span>' +
+      '<span class="fname">' + esc(label) + (days.length === 1 ? ' · Day ' + esc(days[0]) : '') + '</span>' +
+      '<span class="fmeta">' + items.length + (items.length === 1 ? ' shot' : ' shots') + '</span></button>' +
+      '<button type="button" class="linkbtn fsel">' + (allSel ? 'Clear' : 'Select all') + '</button></div><div class="list">';
     for (const [s, i] of items) {
       const v = k => (s.values[k] || '').trim();
       const title = [v('Scene') && 'Sc ' + v('Scene'), v('Shot') && 'Shot ' + v('Shot')].filter(Boolean).join(' · ') || 'Untitled shot';
       const pic = s.photos['Monitor frame'] || s.photos['Camera position'] || s.photos['Lighting / set'] || s.photos['Lens / camera'];
       let thumb = '<span class="thumb">No photo</span>';
-      if (pic) { const u = URL.createObjectURL(pic); dirUrls.push(u); thumb = '<span class="thumb"><img src="' + u + '" alt=""></span>'; }
+      if (pic && open) { const u = URL.createObjectURL(pic); dirUrls.push(u); thumb = '<span class="thumb"><img src="' + u + '" alt=""></span>'; }
       const takes = Array.from({length:TAKE_ROWS}, (_, r) => v('Take ' + (r + 1)) || v('Roll / clip ' + (r + 1))).filter(Boolean).length;
       const ab = k => s.bcam && v('B ' + k) ? (v(k) || '–') + ' / ' + v('B ' + k) : v(k);
       const chips = [['Lens', ab('Lens')], ['T', ab('T-stop')], ['ISO', ab('ISO')], ['Cam', ab('Camera roll')], ['Loc', v('Location')], ['Takes', takes || '']]
         .filter(([, x]) => x).map(([k, x]) => '<span><b>' + k + '</b>' + hl(String(x), q) + '</span>').join('');
-      html += '<button type="button" class="item' + (i === cur ? ' current' : '') + '" data-i="' + i + '">' + thumb +
+      html += '<button type="button" class="item' + (i === cur ? ' current' : '') + (selected.has(s.id) ? ' sel' : '') + '" data-i="' + i + '" data-id="' + s.id + '"' + (selecting ? ' aria-pressed="' + selected.has(s.id) + '"' : '') + '>' +
+        '<span class="tick" aria-hidden="true">' + (selected.has(s.id) ? '✓' : '') + '</span>' + thumb +
         '<span style="min-width:0"><span class="it-title">' + hl(title, q) + '</span>' +
         (v('Shot description') ? '<span class="it-desc" style="display:block">' + hl(v('Shot description'), q) + '</span>' : '') +
         (chips ? '<span class="chips">' + chips + '</span>' : '') + '</span>' +
         '<span class="sheetnum">Sheet ' + (i + 1) + '</span></button>';
     }
-    html += '</div>';
+    html += '</div></div>';
   }
   byId('dirList').innerHTML = shown ? html : '<p class="empty">' + (q ? 'No shots match “' + esc(q) + '”.' : 'No shots yet.') + '</p>';
   byId('dirCount').textContent = (q ? shown + ' of ' : '') + shots.length + (shots.length === 1 ? ' shot' : ' shots');
+  const keys = [...groups.keys()], allOpen = keys.every(isOpen);
+  byId('foldAll').hidden = !!q || keys.length < 2; byId('foldAll').textContent = allOpen ? 'Close all days' : 'Open all days';
+  updateSel();
 }
 function openDir(query) {
   setView('dir');
   byId('back').textContent = '‹ Back to shot ' + (cur + 1);
   byId('search').value = typeof query === 'string' ? query : '';
-  renderDir();
+  byId('moveStatus').textContent = '';
+  endSelect(true); renderDir();
   if (matchMedia('(pointer: fine)').matches) byId('search').focus({preventScroll:true});
 }
 function closeDir(i) {
   dirUrls.splice(0).forEach(u => URL.revokeObjectURL(u));
-  setView('sheet');
+  endSelect(true); setView('sheet');
   if (i !== undefined) { go(i); status.textContent = 'Opened shot ' + (i + 1) + '.'; } else render();
 }
 byId('dirBtn').onclick = () => openDir();
 byId('back').onclick = () => closeDir();
 byId('search').addEventListener('input', renderDir);
 byId('search').addEventListener('keydown', e => {
+  if (selecting) return;
   if (e.key === 'Enter') { const first = byId('dirList').querySelector('.item'); if (first) closeDir(+first.dataset.i); }
   if (e.key === 'Escape') closeDir();
 });
-byId('dirList').addEventListener('click', e => { const it = e.target.closest('.item'); if (it) closeDir(+it.dataset.i); });
+byId('foldAll').onclick = () => {
+  const keys = [...new Set(shots.map(dayKey))], allOpen = keys.every(isOpen);
+  openDays[curProject] = allOpen ? [] : keys; save(); renderDir();
+};
+byId('dirList').addEventListener('click', e => {
+  const fold = e.target.closest('.folder'), k = fold?.dataset.k;
+  if (e.target.closest('.foldhead')) { if (!byId('search').value.trim()) { setOpen(k, !fold.classList.contains('open')); renderDir(); } return; }
+  if (e.target.closest('.fsel')) {
+    const ids = [...fold.querySelectorAll('.item')].map(b => b.dataset.id), all = ids.every(id => selected.has(id));
+    ids.forEach(id => all ? selected.delete(id) : selected.add(id)); renderDir(); return;
+  }
+  const it = e.target.closest('.item'); if (!it) return;
+  if (!selecting) { closeDir(+it.dataset.i); return; }
+  selected.has(it.dataset.id) ? selected.delete(it.dataset.id) : selected.add(it.dataset.id);
+  const on = selected.has(it.dataset.id);
+  it.classList.toggle('sel', on); it.setAttribute('aria-pressed', on); it.querySelector('.tick').textContent = on ? '✓' : '';
+  const ids = [...fold.querySelectorAll('.item')].map(b => b.dataset.id);
+  fold.querySelector('.fsel').textContent = ids.every(id => selected.has(id)) ? 'Clear' : 'Select all';
+  updateSel();
+});
+
+/* ---------- Move notes to another date or project ---------- */
+function updateSel() {
+  const n = selected.size;
+  byId('selCount').textContent = n ? n + (n === 1 ? ' note selected' : ' notes selected') : 'Tap notes to select them';
+  byId('moveOpen').disabled = !n;
+  if (!n) byId('movePanel').hidden = true;
+}
+function startSelect() {
+  selecting = true; selected.clear(); document.body.classList.add('selecting');
+  byId('moveBar').hidden = false; byId('movePanel').hidden = true; byId('selBtn').hidden = true; byId('moveStatus').textContent = '';
+  renderDir();
+}
+function endSelect(quiet) {
+  selecting = false; selected.clear(); document.body.classList.remove('selecting');
+  byId('moveBar').hidden = true; byId('selBtn').hidden = false;
+  if (!quiet) renderDir();
+}
+byId('selBtn').onclick = startSelect;
+byId('selDone').onclick = () => endSelect();
+byId('moveOpen').onclick = () => {
+  const sel = byId('moveProj');
+  sel.innerHTML = [...lib.projects].sort((a, b) => (b.created || 0) - (a.created || 0))
+    .map(p => '<option value="' + p.id + '"' + (p.id === curProject ? ' selected' : '') + '>' + esc(p.name) + (p.id === curProject ? ' (this project)' : '') + '</option>').join('') +
+    '<option value="__new">New project…</option>';
+  byId('moveNewWrap').hidden = true; byId('moveNewProj').value = ''; byId('moveDate').value = '';
+  byId('movePanel').hidden = false;
+  byId('movePanel').scrollIntoView({block:'nearest'});
+};
+byId('moveProj').onchange = () => { const nw = byId('moveProj').value === '__new'; byId('moveNewWrap').hidden = !nw; if (nw) byId('moveNewProj').focus(); };
+byId('moveGo').onclick = () => {
+  const ids = new Set(selected); if (!ids.size) return;
+  let pid = byId('moveProj').value;
+  if (pid === '__new') { const name = byId('moveNewProj').value.trim(); if (!name) { byId('moveNewProj').focus(); return; } pid = newProject(name).id; }
+  const dv = byId('moveDate').value, from = project(), to = lib.projects.find(p => p.id === pid);
+  if (!to || (pid === curProject && !dv)) { byId('moveStatus').textContent = 'Pick another project or a date to move to.'; return; }
+  const curId = shot()?.id, moving = lib.shots.filter(s => ids.has(s.id)), t = Date.now();
+  if (pid !== curProject) lib.shots = lib.shots.filter(s => s.projectId !== pid || hasContent(s)); /* drop the target project's unused blank sheet */
+  for (const s of moving) {
+    if (dv) { /* new day, same time of day, so the notes keep their order */
+      const o = new Date(s.created || t), [y, m, d] = dv.split('-').map(Number);
+      s.created = new Date(y, m - 1, d, o.getHours(), o.getMinutes(), o.getSeconds(), o.getMilliseconds()).getTime();
+    }
+    if (pid !== s.projectId) { if ((s.values.Project || '').trim() === (from?.name || '').trim()) s.values.Project = to.name; s.projectId = pid; }
+    s.updated = t;
+  }
+  to.updated = t; if (from) from.updated = t;
+  refreshShots();
+  const ci = shots.findIndex(s => s.id === curId); cur = ci >= 0 ? ci : Math.min(cur, shots.length - 1);
+  if (dv && pid === curProject) setOpen(dateKey(new Date(dv + 'T12:00').getTime()), true);
+  const n = moving.length, where = (dv ? new Date(dv + 'T12:00').toLocaleDateString([], {month:'short', day:'numeric', year:'numeric'}) : '') + (pid !== curProject ? (dv ? ' in ' : '') + '“' + to.name + '”' : '');
+  save(); endSelect(true); renderDir(); byId('back').textContent = '‹ Back to shot ' + (cur + 1);
+  byId('moveStatus').textContent = 'Moved ' + n + (n === 1 ? ' note' : ' notes') + ' to ' + where + '.';
+};
 /* ---------- Project settings ---------- */
 function openSettings() {
   setView('settings');
@@ -1076,7 +1210,7 @@ byId('restoreFile').addEventListener('change', async e => {
 function finishRestore(msg) {
   incoming = null; byId('restoreAsk').hidden = true;
   if (!lib.projects.find(p => p.id === curProject)) curProject = null;
-  lastStamp = Math.max(lastStamp, ...lib.shots.map(s => s.created || 0));
+  lastStamp = Math.max(lastStamp, pastMax(lib.shots.map(s => s.created || 0)));
   save(); renderProjects();
   byId('libStatus').textContent = msg;
 }

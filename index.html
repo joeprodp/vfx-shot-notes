@@ -225,11 +225,25 @@ body:not(.view-settings) #settings, body:not(.view-settings) #backSettings{displ
 .sethead{margin:0 !important}
 .pdfmenu{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--sheet)}
 #pdf.menu-open{display:none}
-body.view-projects .toolbar{display:none}
+body.view-projects:not(.can-undo) .toolbar{display:none}
+body.view-projects .toolbar{justify-content:flex-end}
 /* Project name gets its own full line above the shot controls, wrapping instead of being cut off */
 .projname{flex:1 1 100%;order:-1;font-weight:600;font-size:18px;line-height:1.25;color:var(--title);overflow-wrap:anywhere;text-wrap:balance}
 .projname:empty{display:none}
 .shotnav{display:flex;gap:6px;align-items:center}
+/* Undo: available on every screen once there's something to undo */
+#undo{order:5}
+body:not(.can-undo) #undo{display:none}
+#undo .ulabel{color:var(--muted);font-weight:400;margin-left:6px;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:bottom}
+/* Menu for the less frequent shot actions */
+.menuwrap{position:relative}
+#menuBtn{font-size:18px;line-height:1;padding:8px 13px}
+.menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:220px;display:grid;gap:2px;padding:6px;background:var(--sheet);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menu button{text-align:left;border:0;background:transparent;width:100%;min-height:44px;font-size:15px}
+.menu button:hover{background:var(--field)}
+.menu button.danger{color:var(--warn)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 2px}
+@media (max-width:640px){#undo .ulabel{display:none}}
 #projects{max-width:900px;margin:auto;background:var(--sheet);padding:22px 24px 26px;border-radius:3px}
 .newproj{display:flex;gap:8px;margin-top:14px}
 .newproj input{flex:1 1 auto;min-width:0;border:1px solid var(--line);background:var(--field);color:var(--fg);font:16px var(--sans);padding:10px 12px;border-radius:4px}
@@ -262,11 +276,10 @@ body.view-projects .toolbar{display:none}
     </span>
   </div>
   <button id="back" type="button">‹ Back to shot</button>
+  <button id="undo" type="button" title="Undo (⌘Z)">↶ Undo<span class="ulabel" id="undoLabel"></span></button>
   <button id="backSettings" type="button">‹ All shots</button>
   <div class="actions">
     <button id="carry" class="carry" type="button">Next setup</button>
-    <button id="blank" type="button">Blank shot</button>
-    <button id="del" type="button">Delete shot</button>
     <span id="confirm" hidden><button id="confirmYes" class="danger" type="button">Delete this shot</button> <button id="confirmNo" type="button">Keep</button></span>
     <button id="pdf" class="primary" type="button">Save PDF</button>
     <span id="pdfMenu" class="pdfmenu" hidden>
@@ -276,6 +289,13 @@ body.view-projects .toolbar{display:none}
       <button id="pdfCancel" type="button">Cancel</button>
     </span>
     <button id="sharePdf" class="primary" type="button" hidden>Share PDF</button>
+    <span class="menuwrap"><button id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="More actions">☰</button>
+      <span id="menu" class="menu" role="menu" hidden>
+        <button id="blank" type="button" role="menuitem">Blank shot</button>
+        <button id="menuSettings" type="button" role="menuitem">Project settings</button>
+        <hr>
+        <button id="del" class="danger" type="button" role="menuitem">Delete shot</button>
+      </span></span>
   </div>
 </div>
 <span id="status" role="status">Tap anywhere in a box to type. Return moves to the next box. Next setup copies this shot onto a new page; blue italic marks anything you haven't changed yet.</span>
@@ -305,7 +325,7 @@ body.view-projects .toolbar{display:none}
     <button id="restoreCancel" type="button">Cancel</button>
   </div>
   <p id="libStatus" class="libnote" role="status"></p>
-  <p class="libnote" style="margin-top:18px;font-size:12px">App version 16 · updated Nov 13, 2026</p>
+  <p class="libnote" style="margin-top:18px;font-size:12px">App version 17 · updated Nov 13, 2026</p>
 </section>
 
 <!-- One project's directory of shots -->
@@ -485,6 +505,36 @@ let shots = [emptyShot()], cur = 0;
 const shot = () => shots[cur];
 const project = () => lib.projects.find(p => p.id === curProject);
 const projShots = id => lib.shots.filter(s => s.projectId === id).sort((a, b) => (a.created || 0) - (b.created || 0));
+/* ---------- Undo: snapshots of the library taken before each change (this session only) ---------- */
+const undoStack = []; let lastTypeKey = '', lastTypeAt = 0;
+const copyShot = s => ({...s, values: {...s.values}, carried: {...s.carried}, photos: {...s.photos}, photoCarried: {...s.photoCarried}});
+function pushUndo(label) {
+  undoStack.push({label, projects: lib.projects.map(p => ({...p})), shots: lib.shots.map(copyShot), curProject, cur, curByProject: {...curByProject}});
+  if (undoStack.length > 60) undoStack.shift();
+  showUndo();
+}
+function showUndo() {
+  const top = undoStack[undoStack.length - 1];
+  document.body.classList.toggle('can-undo', !!top);
+  byId('undoLabel').textContent = top ? top.label : '';
+  byId('undo').setAttribute('aria-label', top ? 'Undo ' + top.label : 'Undo');
+}
+function undo() {
+  const u = undoStack.pop(); if (!u) return;
+  lastTypeKey = '';
+  lib = {projects: u.projects.map(p => ({...p})), shots: u.shots.map(copyShot)};
+  curByProject = {...u.curByProject};
+  const view = ['projects', 'sheet', 'dir', 'settings'].find(v => document.body.classList.contains('view-' + v)) || 'projects';
+  if (!lib.projects.find(p => p.id === u.curProject)) curProject = null;
+  else if (u.curProject !== curProject || view === 'projects') curProject = u.curProject;
+  if (curProject) { refreshShots(); cur = Math.max(0, Math.min(u.cur, shots.length - 1)); }
+  save(); showUndo();
+  const msg = 'Undid: ' + u.label + '.';
+  if (!curProject || view === 'projects') { showProjects(); byId('libStatus').textContent = msg; }
+  else if (view === 'dir') { renderDir(); byId('moveStatus').textContent = msg; }
+  else if (view === 'settings') { openSettings(); byId('dirStatus').textContent = msg; }
+  else { render(); status.textContent = msg; }
+}
 function refreshShots() { shots = projShots(curProject); if (!shots.length) { const s = emptyShot(); s.projectId = curProject; if (project()) s.values.Project = project().name; lib.shots.push(s); shots = [s]; } cur = Math.max(0, Math.min(cur, shots.length - 1)); }
 function addShot(s) { s.projectId = curProject; lib.shots.push(s); shots = projShots(curProject); return shots.indexOf(s); }
 function newProject(name) { const t = now(); const p = {id:newId(), name:name.trim() || 'Untitled project', created:t, updated:t}; lib.projects.push(p); return p; }
@@ -622,8 +672,8 @@ function showBcam(on) {
   const mon = form.querySelector('.photo[data-name="Monitor frame"]');
   mon.querySelector('.phl').textContent = mon.querySelector('.tag').textContent = on ? 'MONITOR FRAME · A CAM' : 'MONITOR FRAME';
 }
-byId('bOn').onclick = () => { const s = shot(); s.bcam = true; s.updated = Date.now(); touchProject(); showBcam(true); save(); byId('f-b-camera-roll').focus(); };
-byId('bOff').onclick = () => { const s = shot(); s.bcam = false; s.updated = Date.now(); touchProject(); showBcam(false); save(); status.textContent = 'B cam hidden on this shot. Its values are kept; tap + B cam to bring them back.'; };
+byId('bOn').onclick = () => { pushUndo('adding B cam'); const s = shot(); s.bcam = true; s.updated = Date.now(); touchProject(); showBcam(true); save(); byId('f-b-camera-roll').focus(); };
+byId('bOff').onclick = () => { pushUndo('removing B cam'); const s = shot(); s.bcam = false; s.updated = Date.now(); touchProject(); showBcam(false); save(); status.textContent = 'B cam hidden on this shot. Its values are kept; tap + B cam to bring them back.'; };
 function updateLegend() {
   const s = shot();
   byId('legend').hidden = !(Object.keys(s.carried).some(k => s.values[k]) || Object.keys(s.photoCarried).some(k => s.photos[k]));
@@ -633,6 +683,12 @@ function updateLegend() {
 form.addEventListener('submit', e => e.preventDefault());
 form.addEventListener('input', ({target}) => {
   if (!target.classList.contains('box')) return;
+  const key = shot().id + '|' + target.name, t0 = Date.now();
+  if (key !== lastTypeKey || t0 - lastTypeAt > 4000) { /* one undo step per box you type in */
+    const cap = target.closest('.cell')?.querySelector('.cap')?.textContent || target.getAttribute('aria-label') || target.name;
+    pushUndo('typing in ' + cap.replace(/\s+/g, ' ').trim()); /* taken before this keystroke is stored */
+  }
+  lastTypeKey = key; lastTypeAt = t0;
   const s = shot();
   s.values[target.name] = target.value; s.updated = Date.now(); touchProject();
   if (s.carried[target.name]) { delete s.carried[target.name]; target.classList.remove('carried'); updateLegend(); }
@@ -654,7 +710,7 @@ async function shrink(file, max = 2400) {
 form.addEventListener('change', async ({target}) => {
   if (target.type !== 'file' || !target.files[0]) return;
   const s = shot(), name = target.name, raw = target.files[0];
-  target.value = '';
+  target.value = ''; pushUndo('adding a photo');
   let file = await shrink(raw);
   try { file = await memBlob(file); } catch {} /* keep our own copy, not a link to the picked file */
   s.photos[name] = file; delete s.photoCarried[name]; s.updated = Date.now(); touchProject();
@@ -664,7 +720,7 @@ form.addEventListener('change', async ({target}) => {
 form.addEventListener('click', e => {
   const rm = e.target.closest('.rm'); if (!rm) return;
   e.preventDefault();
-  const name = rm.closest('.photo').dataset.name, s = shot();
+  const name = rm.closest('.photo').dataset.name, s = shot(); pushUndo('removing a photo');
   delete s.photos[name]; delete s.photoCarried[name]; s.updated = Date.now(); touchProject();
   setPhoto(name, null); updateLegend(); save();
 });
@@ -694,6 +750,7 @@ function go(i) { cur = Math.max(0, Math.min(i, shots.length - 1)); render(); sav
 byId('prev').onclick = () => go(cur - 1);
 byId('next').onclick = () => go(cur + 1);
 byId('carry').onclick = () => {
+  pushUndo('Next setup');
   const s = shot(), n = emptyShot();
   for (const [k, v] of Object.entries(s.values)) {
     if (!v || form.elements.namedItem(k)?.dataset.take !== undefined) continue; /* takes start fresh */
@@ -708,6 +765,7 @@ byId('carry').onclick = () => {
   byId('f-shot').focus();
 };
 byId('blank').onclick = () => {
+  closeMenu(); pushUndo('Blank shot');
   const n = emptyShot(); if (project()) n.values.Project = project().name;
   addShot(n); touchProject();
   go(shots.length - 1);
@@ -722,6 +780,7 @@ delBtn.onclick = () => {
 };
 byId('confirmNo').onclick = () => { hideConfirm(); status.textContent = 'Kept this shot.'; };
 byId('confirmYes').onclick = () => {
+  pushUndo('deleting shot ' + (cur + 1));
   const s = shot();
   lib.shots = lib.shots.filter(x => x !== s); touchProject();
   refreshShots();
@@ -944,6 +1003,7 @@ byId('importPdf').addEventListener('change', async e => {
   const ds = byId('dirStatus'); ds.textContent = 'Reading the PDF…';
   try {
     const got = readPdf(await f.arrayBuffer());
+    if (got?.data?.app === 'vfx-shot-notes') pushUndo('importing “' + f.name + '”');
     if (!got || got.data?.app !== 'vfx-shot-notes' || !Array.isArray(got.data.shots)) { ds.textContent = 'This PDF doesn’t carry VFX Shot Notes data. Only PDFs saved from this app (after Nov 12, 2026) can be imported.'; return; }
     lib.shots = lib.shots.filter(s => s.projectId !== curProject || hasContent(s)); /* drop the empty starter sheet */
     const known = new Set(lib.shots.map(s => s.id)); let added = 0, skipped = 0;
@@ -1002,7 +1062,7 @@ byId('newProj').addEventListener('submit', e => {
   e.preventDefault();
   const input = byId('newProjName'), name = input.value.trim();
   if (!name) { input.focus(); return; }
-  const p = newProject(name); input.value = '';
+  pushUndo('creating “' + name + '”'); const p = newProject(name); input.value = '';
   save(); openProject(p.id);
   status.textContent = 'New project “' + p.name + '”. The Project box fills in automatically on every new shot.';
 });
@@ -1142,6 +1202,8 @@ byId('moveProj').onchange = () => { const nw = byId('moveProj').value === '__new
 byId('moveGo').onclick = () => {
   const ids = new Set(selected); if (!ids.size) return;
   let pid = byId('moveProj').value;
+  if (pid === curProject && !byId('moveDate').value) { byId('moveStatus').textContent = 'Pick another project or a date to move to.'; return; }
+  pushUndo('moving ' + ids.size + (ids.size === 1 ? ' note' : ' notes'));
   if (pid === '__new') { const name = byId('moveNewProj').value.trim(); if (!name) { byId('moveNewProj').focus(); return; } pid = newProject(name).id; }
   const dv = byId('moveDate').value, from = project(), to = lib.projects.find(p => p.id === pid);
   if (!to || (pid === curProject && !dv)) { byId('moveStatus').textContent = 'Pick another project or a date to move to.'; return; }
@@ -1176,7 +1238,8 @@ byId('settingsBtn').onclick = openSettings;
 byId('backSettings').onclick = () => openDir();
 byId('renameForm').addEventListener('submit', e => {
   e.preventDefault();
-  const p = project(), name = byId('renameInput').value.trim(); if (!p || !name) return;
+  const p = project(), name = byId('renameInput').value.trim(); if (!p || !name || name === p.name) return;
+  pushUndo('renaming the project');
   const old = p.name; p.name = name; p.updated = Date.now();
   for (const s of projShots(p.id)) if ((s.values.Project || '').trim() === old) s.values.Project = name; /* keep the Project box in step */
   save(); render(); byId('setTitle').textContent = name;
@@ -1186,7 +1249,7 @@ function hideDelProj() { byId('delProjAsk').hidden = true; byId('delProj').hidde
 byId('delProj').onclick = () => { byId('delProj').hidden = true; byId('delProjAsk').hidden = false; byId('dirStatus').textContent = 'Delete “' + (project()?.name || '') + '” and all ' + shots.filter(hasContent).length + ' of its shots from this device? Back up first if you might need them.'; };
 byId('delProjNo').onclick = () => { hideDelProj(); byId('dirStatus').textContent = 'Kept the project.'; };
 byId('delProjYes').onclick = () => {
-  const p = project(); if (!p) return;
+  const p = project(); if (!p) return; pushUndo('deleting “' + p.name + '”');
   lib.shots = lib.shots.filter(s => s.projectId !== p.id); lib.projects = lib.projects.filter(x => x.id !== p.id);
   delete curByProject[p.id]; curProject = null; save(); showProjects();
   byId('libStatus').textContent = 'Deleted “' + p.name + '”.';
@@ -1259,7 +1322,7 @@ function finishRestore(msg) {
 }
 byId('restoreCancel').onclick = () => { incoming = null; byId('restoreAsk').hidden = true; byId('libStatus').textContent = 'Restore cancelled. Nothing changed.'; };
 byId('restoreMerge').onclick = () => {
-  if (!incoming) return;
+  if (!incoming) return; pushUndo('restoring a backup');
   /* projects match by id, then by name; shots match by id and the newer edit wins */
   const pMap = {}, byName = new Map(lib.projects.map(p => [p.name.trim().toLowerCase(), p]));
   for (const p of incoming.projects) {
@@ -1278,12 +1341,28 @@ byId('restoreMerge').onclick = () => {
   finishRestore('Added ' + added + (added === 1 ? ' shot' : ' shots') + (newer ? ' and updated ' + newer + ' with newer edits' : '') + '. Now ' + lib.projects.length + (lib.projects.length === 1 ? ' project.' : ' projects.'));
 };
 byId('restoreReplace').onclick = () => {
-  if (!incoming) return;
+  if (!incoming) return; pushUndo('replacing with a backup');
   lib = {projects: incoming.projects, shots: incoming.shots};
   curByProject = {};
   finishRestore('Replaced with the backup: ' + lib.projects.length + (lib.projects.length === 1 ? ' project, ' : ' projects, ') + lib.shots.length + (lib.shots.length === 1 ? ' shot.' : ' shots.'));
 };
 
+/* ---------- Menu and Undo controls ---------- */
+function closeMenu() { byId('menu').hidden = true; byId('menuBtn').setAttribute('aria-expanded', 'false'); }
+byId('menuBtn').onclick = e => {
+  e.stopPropagation(); const open = byId('menu').hidden;
+  hideConfirm(); closePdfMenu();
+  byId('menu').hidden = !open; byId('menuBtn').setAttribute('aria-expanded', String(open));
+};
+document.addEventListener('click', e => { if (!byId('menu').hidden && !e.target.closest('.menuwrap')) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+byId('menuSettings').onclick = () => { closeMenu(); openSettings(); };
+byId('del').addEventListener('click', closeMenu);
+byId('undo').onclick = undo;
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !e.target.closest('input, textarea')) { e.preventDefault(); undo(); }
+});
+showUndo();
 load().then(render);
 
 /* Standalone app: offline support, durable storage, install hint */
